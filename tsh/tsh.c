@@ -99,5 +99,10 @@ int main (int argc, char *argv[])
 
 static void sig_handler(int signo)
 {
+  if (signo == SIGINT) {
+
+  } else if (signo == SIGTSTP) {
+
+  }
 }
 
