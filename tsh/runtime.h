@@ -175,6 +175,11 @@ EXTERN char* getLogin();
  ***********************************************************************/
 EXTERN void CheckJobs();
 
+EXTERN void InitAlias();
+
+EXTERN void FinAlias();
+
+
 /************External Declaration*****************************************/
 
 /**************Definition***************************************************/

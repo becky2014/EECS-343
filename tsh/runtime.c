@@ -64,6 +64,21 @@
 
 #define NBUILTINCOMMANDS (sizeof BuiltInCommands / sizeof(char*))
 
+static char* BuiltInCommands[] = {
+  "alias", "bg", "bind", "builtin", "caller", "cd", "command",
+  "declare", "echo", "enable", "fg", "help", "jobs", "let",
+  "local", "logout", "mapfile", "printf", "read", "readarray",
+  "source", "type", "typeset", "ulimit", "unalias"
+};
+static char* TSHRC = ".tshrc";
+
+typedef struct alias_l {
+  char* name;
+  char* cmd;
+  struct alias_l* parent;
+  struct alias_l* child;
+} aliasL;
+
 typedef struct bgjob_l {
   pid_t pid;
   struct bgjob_l* next;
@@ -71,6 +86,9 @@ typedef struct bgjob_l {
 
 /* the pids of the background processes */
 bgjobL *bgjobs = NULL;
+/* the alias bilink list */
+aliasL *alist = NULL;
+
 
 /************Function Prototypes******************************************/
 /* run command */
@@ -85,6 +103,20 @@ static void Exec(commandT*, bool);
 static void RunBuiltInCmd(commandT*);
 /* checks whether a command is a builtin command */
 static bool IsBuiltIn(char*);
+/* initialize alias list */
+void InitAlias();
+/* finalize aliae list */
+void FinAlias();
+/* read in alias from file */
+aliasL* ReadInAlias(char*);
+/* write alias to file */
+bool WriteAlias(aliasL*, char*);
+/* release alias */
+bool ReleaseAlias(aliasL*);
+/* alias to string */
+void DisplayAlias(aliasL*);
+/* add alias */
+void AddAlias(aliasL**, char*);
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
@@ -136,7 +168,6 @@ static void RunExternalCmd(commandT* cmd, bool fork) {
   } else {
     printf("%s: command not found\n", cmd->argv[0]);
     fflush(stdout);
-    ReleaseCmdT(&cmd);
   }
 }
 
@@ -150,7 +181,8 @@ static bool ResolveExternalCmd(commandT* cmd) {
   if(strchr(cmd->argv[0],'/') != NULL) {
     if(stat(cmd->argv[0], &fs) >= 0) {
       if(S_ISDIR(fs.st_mode) == 0)
-        if(access(cmd->argv[0],X_OK) == 0) {/*Whether it's an executable or the user has required permisson to run it*/
+        if(access(cmd->argv[0],X_OK) == 0) {
+          /*Whether it's an executable or the user has required permisson to run it*/
           cmd->name = strdup(cmd->argv[0]);
           return TRUE;
         }
@@ -175,7 +207,8 @@ static bool ResolveExternalCmd(commandT* cmd) {
     strcat(buf,cmd->argv[0]);
     if(stat(buf, &fs) >= 0){
       if(S_ISDIR(fs.st_mode) == 0)
-        if(access(buf,X_OK) == 0) {/*Whether it's an executable or the user has required permisson to run it*/
+        if(access(buf,X_OK) == 0) {
+          /*Whether it's an executable or the user has required permisson to run it*/
           cmd->name = strdup(buf); 
           return TRUE;
         }
@@ -225,11 +258,50 @@ static void Exec(commandT* cmd, bool forceFork) {
 }
 
 static bool IsBuiltIn(char* cmd) {
-  return FALSE;     
+  int i;
+  for (i = 0; i < NBUILTINCOMMANDS; i++) {
+    if (!strcmp(cmd, BuiltInCommands[i])) {
+      return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 
 static void RunBuiltInCmd(commandT* cmd) {
+  if (!strcmp(cmd->argv[0], "alias")) {
+    if (cmd->argc == 1) {
+      DisplayAlias(alist);
+    } else {
+      char* cmdline = strdup(cmd->cmdline);
+      strsep(&cmdline, " ");
+      AddAlias(&alist, cmdline);
+    }
+  } else if (!strcmp(cmd->argv[0], "cd")) {
+    char* dir = NULL;
+    char err[256];
+    if (cmd->argc == 1) {
+      dir = getenv("HOME");
+    } else {
+      dir = cmd->argv[1];
+    }
+    sprintf(err, "cd: fail to change directory: %s\n", dir);
+    if (chdir(dir)) {
+      perror(err);
+    }
+  } else if (!strcmp(cmd->argv[0], "bg")) {
+
+  } else if (!strcmp(cmd->argv[0], "fg")) {
+
+  } else if (!strcmp(cmd->argv[0], "jobs")) {
+
+  } else if (!strcmp(cmd->argv[0], "unalias")) {
+    if (cmd->argc == 1) {
+      printf("unalias: not enough arguments\n");
+    } else {
+
+    }
+  }
 }
 
 void CheckJobs() {
@@ -260,3 +332,106 @@ void ReleaseCmdT(commandT **cmd) {
     if((*cmd)->argv[i] != NULL) free((*cmd)->argv[i]);
   free(*cmd);
 }
+
+aliasL* ReadInAlias(char* file) {
+  char* line = NULL;
+  size_t len = 0;
+  aliasL* aliasHead = NULL;
+  FILE* fp = fopen(file, "r");
+  if (fp) {
+    while (getline(&line, &len, fp) != -1) {
+      line[strlen(line)-1] = 0;
+      AddAlias(&aliasHead, line);
+    }
+    fclose(fp);
+    if (line) {
+      free(line);
+    }
+  }
+  return aliasHead;
+}
+
+bool WriteAlias(aliasL* head, char* file) {
+  FILE* fp;
+  aliasL* ptr = head;
+  if (!head || !file) {
+    return FALSE;
+  }
+  fp = fopen(file, "w");
+  if (fp) {
+    do {
+      fprintf(fp, "%s='%s'\n", ptr->name, ptr->cmd);
+      ptr = ptr->child;
+    } while (ptr != head);
+    fclose(fp);
+  }
+  return TRUE;
+}
+
+bool ReleaseAlias(aliasL* head) {
+  if (!head) {
+    return FALSE;
+  }
+  aliasL *a;
+  a = head->child;
+  while (a != head) {
+    free(a->parent);
+    a = a->child;
+  }
+  free(head);
+  return TRUE;
+}
+
+
+void DisplayAlias(aliasL* head) {
+  aliasL *ptr = head;
+  if (ptr) {
+    do {
+      printf("%s='%s'\n", ptr->name, ptr->cmd);
+      ptr = ptr->child;
+    } while (ptr != head);
+  } else {
+    printf("alias: no alias available\n");
+  }
+}
+
+
+void AddAlias(aliasL** aliasHeadPtr, char* cmdline) {
+  aliasL *aliasNode = (aliasL*)malloc(sizeof(aliasL));
+  char* name = NULL;
+  char* cmd = strdup(cmdline);
+  size_t len = 0;
+  name = strsep(&cmd, "=");
+  len = strlen(cmd);
+  if (name && cmd) {
+    if (cmd[0] == '\'') {
+      cmd++;
+      cmd[len-2] = 0;
+    }
+    aliasNode = (aliasL*)malloc(sizeof(aliasL));
+    aliasNode->name = name;
+    aliasNode->cmd = cmd;
+    if (!(*aliasHeadPtr)) {
+      aliasNode->child = aliasNode;
+      aliasNode->parent = aliasNode;
+      *aliasHeadPtr = aliasNode;
+    } else {
+      aliasNode->child = *aliasHeadPtr;
+      aliasNode->parent = (*aliasHeadPtr)->parent;
+      (*aliasHeadPtr)->parent->child = aliasNode;
+      (*aliasHeadPtr)->parent = aliasNode;
+    }
+  }
+}
+
+void InitAlias() {
+  alist = ReadInAlias(TSHRC);
+}
+
+void FinAlias() {
+  WriteAlias(alist, TSHRC);
+  ReleaseAlias(alist);
+}
+
+
+

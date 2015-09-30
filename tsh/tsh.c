@@ -72,7 +72,7 @@ int main (int argc, char *argv[])
   if (signal(SIGINT, sig_handler) == SIG_ERR) PrintPError("SIGINT");
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
   if (signal(SIGQUIT, sig_handler) == SIG_ERR) PrintPError("SIGQUIT");
-
+  InitAlias();
   while (!forceExit) /* repeat forever */
   {
     /* read command line */
@@ -92,7 +92,7 @@ int main (int argc, char *argv[])
     Interpret(cmdLine);
 
   }
-
+  FinAlias();
   /* shell termination */
   free(cmdLine);
   return 0;
