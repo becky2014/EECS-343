@@ -52,6 +52,7 @@
 /************Private include**********************************************/
 #include "runtime.h"
 #include "io.h"
+#include "interpreter.h"
 
 /************Defines and Typedefs*****************************************/
 /*  #defines and typedefs should have their names in all caps.
@@ -117,6 +118,8 @@ bool ReleaseAlias(aliasL*);
 void DisplayAlias(aliasL*);
 /* add alias */
 void AddAlias(aliasL**, char*);
+/* get real command of alias */
+char* InterpretAlias(aliasL*, char*);
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
@@ -140,7 +143,10 @@ void RunCmdFork(commandT* cmd, bool fork) {
   if (cmd->argc<=0) {
     return;
   }
-  if (IsBuiltIn(cmd->argv[0])) {
+  char* realcmd = InterpretAlias(alist, cmd->argv[0]);
+  if (realcmd) {
+    Interpret(realcmd);
+  } else if (IsBuiltIn(cmd->argv[0])) {
     RunBuiltInCmd(cmd);
   } else {
     RunExternalCmd(cmd, fork);
@@ -422,6 +428,20 @@ void AddAlias(aliasL** aliasHeadPtr, char* cmdline) {
       (*aliasHeadPtr)->parent = aliasNode;
     }
   }
+}
+
+char* InterpretAlias(aliasL* head, char* cmd) {
+  aliasL* a;
+  if (head) {
+    a = head;
+    do {
+      if (!strcmp(a->name, cmd)) {
+        return strdup(a->cmd);
+      }
+      a = a->child;
+    } while(a != head);
+  }
+  return NULL;
 }
 
 void InitAlias() {
