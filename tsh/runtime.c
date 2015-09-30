@@ -88,59 +88,52 @@ static bool IsBuiltIn(char*);
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
-int total_task;
-void RunCmd(commandT** cmd, int n)
-{
+void RunCmd(commandT** cmd, int n) {
   int i;
-  total_task = n;
-  if(n == 1)
-    RunCmdFork(cmd[0], TRUE);
-  else{
-    RunCmdPipe(cmd[0], cmd[1]);
-    for(i = 0; i < n; i++)
-      ReleaseCmdT(&cmd[i]);
+  int fd[2] = {0, 1};
+  for (i = 0; i < n; i++) {
+    cmd[i]->fd_in = fd[0];
+    if (i == n-1) {
+      cmd[i]->fd_out = STDOUT_FILENO;
+    } else {
+      pipe(fd);
+      cmd[i]->fd_out = fd[1];
+    }
+    RunCmdFork(cmd[i], TRUE);
+    ReleaseCmdT(&cmd[i]);
   }
 }
 
-void RunCmdFork(commandT* cmd, bool fork)
-{
-  if (cmd->argc<=0)
+void RunCmdFork(commandT* cmd, bool fork) {
+  if (cmd->argc<=0) {
     return;
-  if (IsBuiltIn(cmd->argv[0]))
-  {
-    RunBuiltInCmd(cmd);
   }
-  else
-  {
+  if (IsBuiltIn(cmd->argv[0])) {
+    RunBuiltInCmd(cmd);
+  } else {
     RunExternalCmd(cmd, fork);
   }
 }
 
-void RunCmdBg(commandT* cmd)
-{
+void RunCmdBg(commandT* cmd) {
   // TODO
 }
 
-void RunCmdPipe(commandT* cmd1, commandT* cmd2)
-{
+void RunCmdPipe(commandT** cmd, int n) {
 }
 
-void RunCmdRedirOut(commandT* cmd, char* file)
-{
+void RunCmdRedirOut(commandT* cmd, char* file) {
 }
 
-void RunCmdRedirIn(commandT* cmd, char* file)
-{
+void RunCmdRedirIn(commandT* cmd, char* file) {
 }
 
 
 /*Try to run an external command*/
-static void RunExternalCmd(commandT* cmd, bool fork)
-{
-  if (ResolveExternalCmd(cmd)){
+static void RunExternalCmd(commandT* cmd, bool fork) {
+  if (ResolveExternalCmd(cmd)) {
     Exec(cmd, fork);
-  }
-  else {
+  } else {
     printf("%s: command not found\n", cmd->argv[0]);
     fflush(stdout);
     ReleaseCmdT(&cmd);
@@ -148,17 +141,16 @@ static void RunExternalCmd(commandT* cmd, bool fork)
 }
 
 /*Find the executable based on search list provided by environment variable PATH*/
-static bool ResolveExternalCmd(commandT* cmd)
-{
+static bool ResolveExternalCmd(commandT* cmd) {
   char *pathlist, *c;
   char buf[1024];
   int i, j;
   struct stat fs;
 
-  if(strchr(cmd->argv[0],'/') != NULL){
-    if(stat(cmd->argv[0], &fs) >= 0){
+  if(strchr(cmd->argv[0],'/') != NULL) {
+    if(stat(cmd->argv[0], &fs) >= 0) {
       if(S_ISDIR(fs.st_mode) == 0)
-        if(access(cmd->argv[0],X_OK) == 0){/*Whether it's an executable or the user has required permisson to run it*/
+        if(access(cmd->argv[0],X_OK) == 0) {/*Whether it's an executable or the user has required permisson to run it*/
           cmd->name = strdup(cmd->argv[0]);
           return TRUE;
         }
@@ -168,14 +160,13 @@ static bool ResolveExternalCmd(commandT* cmd)
   pathlist = getenv("PATH");
   if(pathlist == NULL) return FALSE;
   i = 0;
-  while(i<strlen(pathlist)){
+  while(i<strlen(pathlist)) {
     c = strchr(&(pathlist[i]),':');
-    if(c != NULL){
+    if(c != NULL) {
       for(j = 0; c != &(pathlist[i]); i++, j++)
         buf[j] = pathlist[i];
       i++;
-    }
-    else{
+    } else {
       for(j = 0; i < strlen(pathlist); i++, j++)
         buf[j] = pathlist[i];
     }
@@ -184,7 +175,7 @@ static bool ResolveExternalCmd(commandT* cmd)
     strcat(buf,cmd->argv[0]);
     if(stat(buf, &fs) >= 0){
       if(S_ISDIR(fs.st_mode) == 0)
-        if(access(buf,X_OK) == 0){/*Whether it's an executable or the user has required permisson to run it*/
+        if(access(buf,X_OK) == 0) {/*Whether it's an executable or the user has required permisson to run it*/
           cmd->name = strdup(buf); 
           return TRUE;
         }
@@ -193,27 +184,59 @@ static bool ResolveExternalCmd(commandT* cmd)
   return FALSE; /*The command is not found or the user don't have enough priority to run.*/
 }
 
-static void Exec(commandT* cmd, bool forceFork)
-{
+static void Exec(commandT* cmd, bool forceFork) {
+  int fd;
+  int pid = fork();
+  if (pid == 0) { // child prcess
+    if (cmd->fd_in != STDIN_FILENO) {
+      dup2(cmd->fd_in, STDIN_FILENO);
+      close(cmd->fd_in);
+    }
+    if (cmd->fd_out != STDOUT_FILENO) {
+      dup2(cmd->fd_out, STDOUT_FILENO);
+      close(cmd->fd_out);
+    }
+    if (cmd->is_redirect_in) {
+      fd = open(cmd->redirect_in, O_RDONLY);
+      dup2(fd, STDIN_FILENO);
+      close(fd);
+    }
+    if (cmd->is_redirect_out) {
+      fd = open(cmd->redirect_out, O_WRONLY | O_CREAT | O_TRUNC , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+      dup2(fd, STDOUT_FILENO);
+      close(fd);
+    }
+    if (cmd->bg != 1) {
+      tcsetpgrp(STDIN_FILENO, getpid());
+    }
+    setpgid(0, 0);
+    execv(cmd->name, cmd->argv);
+  } else { // parent process
+    if (cmd->fd_in != STDIN_FILENO) {
+      close(cmd->fd_in);
+    }
+    if (cmd->fd_out != STDOUT_FILENO) {
+      close(cmd->fd_out);
+    }
+    if (cmd->bg == 1) { // background job
+    } else { // foreground job
+    }
+  }
 }
 
-static bool IsBuiltIn(char* cmd)
-{
+static bool IsBuiltIn(char* cmd) {
   return FALSE;     
 }
 
 
-static void RunBuiltInCmd(commandT* cmd)
-{
+static void RunBuiltInCmd(commandT* cmd) {
 }
 
-void CheckJobs()
-{
+void CheckJobs() {
 }
 
 
-commandT* CreateCmdT(int n)
-{
+commandT* CreateCmdT(int n) {
   int i;
   commandT * cd = malloc(sizeof(commandT) + sizeof(char *) * (n + 1));
   cd -> name = NULL;
@@ -227,7 +250,7 @@ commandT* CreateCmdT(int n)
 }
 
 /*Release and collect the space of a commandT struct*/
-void ReleaseCmdT(commandT **cmd){
+void ReleaseCmdT(commandT **cmd) {
   int i;
   if((*cmd)->name != NULL) free((*cmd)->name);
   if((*cmd)->cmdline != NULL) free((*cmd)->cmdline);

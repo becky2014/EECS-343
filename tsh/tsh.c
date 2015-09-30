@@ -71,6 +71,7 @@ int main (int argc, char *argv[])
   /* shell initialization */
   if (signal(SIGINT, sig_handler) == SIG_ERR) PrintPError("SIGINT");
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
+  if (signal(SIGQUIT, sig_handler) == SIG_ERR) PrintPError("SIGQUIT");
 
   while (!forceExit) /* repeat forever */
   {
@@ -100,9 +101,8 @@ int main (int argc, char *argv[])
 static void sig_handler(int signo)
 {
   if (signo == SIGINT) {
-
   } else if (signo == SIGTSTP) {
-
+  } else if (signo == SIGQUIT) {
   }
 }
 

@@ -59,6 +59,7 @@ typedef struct command_t
   char *cmdline;
   char *redirect_in, *redirect_out;
   int is_redirect_in, is_redirect_out;
+  int fd_in, fd_out;
   int bg;
   int argc;
   char* argv[];
@@ -100,7 +101,7 @@ EXTERN void RunCmdBg(commandT*);
  *    Input: two command structure
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmdPipe(commandT*, commandT*);
+EXTERN void RunCmdPipe(commandT**, int);
 
 /***********************************************************************
  *  Title: Runs two command with output redirection
