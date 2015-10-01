@@ -1,3 +1,7 @@
 *.o
 tsh
 .tshrc
+*.gz
+testsuite/myspin
+testsuite/mysplit
+testsuite/mystop
