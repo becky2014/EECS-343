@@ -183,6 +183,8 @@ EXTERN void KillFGJob();
 
 EXTERN void SuspendFGJob();
 
+EXTERN void KillAllJobs();
+
 /************External Declaration*****************************************/
 
 /**************Definition***************************************************/

@@ -144,7 +144,7 @@ void KillFGJob();
 /* suspend forground job */
 void SuspendFGJob();
 /* kill all jobs */
-void KillAllJobs(bgjobL*);
+void KillAllJobs();
 /* add new job to job list */
 void AddJob(bgjobL**, pid_t, char*, bool);
 /* release job */
@@ -369,6 +369,10 @@ static void RunBuiltInCmd(commandT* cmd) {
 }
 
 void CheckJobs() {
+  bgjobL* node = bgjobs;
+  if (node) {
+
+  }
 }
 
 
@@ -572,6 +576,23 @@ void BGJob(bgjobL* bgjobHead, int jid) {
   if (!node) {
     printf("bg: no current job\n");
   } else {
+    if (jid > 0) {
+      do {
+        if (node->jid == jid) break;
+        node = node->child;
+      } while (node != bgjobHead);
+      if (node->jid != jid) {
+        printf("bg: %d: no such job\n", jid);
+        return;
+      }
+    }
+    if (!strcmp(node->status, "running")) {
+      printf("bg: job already in background!\n");
+      return;
+    }
+    kill(node->pid, SIGCONT);
+    ResumeJob(bgjobHead, node->pid);
+    DisplayJob(node);
   }
 }
 
@@ -587,7 +608,7 @@ void FGJob(bgjobL* bgjobHead, int jid) {
         node = node->child;
       } while (node != bgjobHead);
       if (node->jid != jid) {
-        printf("fg: %d: no such job", jid);
+        printf("fg: %d: no such job\n", jid);
         return;
       }
     }
@@ -640,7 +661,7 @@ void SuspendFGJob() {
 }
 
 
-void KillAllJobs(bgjobL* head) {
+void KillAllJobs() {
   return;
 }
 

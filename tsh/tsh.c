@@ -75,7 +75,7 @@ int main (int argc, char *argv[]) {
   if (signal(SIGINT, sig_handler) == SIG_ERR) PrintPError("SIGINT");
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
   if (signal(SIGTTIN, SIG_IGN) == SIG_ERR) PrintPError("SIGTTIN");
-//  if (signal(SIGTTOU, SIG_IGN) == SIG_ERR) PrintPError("SIGTTOU");
+  if (signal(SIGTTOU, SIG_IGN) == SIG_ERR) PrintPError("SIGTTOU");
 //  if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) PrintPError("SIGCHLD");
   InitAlias();
   while (!forceExit) { /* repeat forever */
@@ -92,6 +92,7 @@ int main (int argc, char *argv[]) {
     cmd = Interpret(cmdLine, &taskNum);
     RunCmd(cmd, taskNum, STDIN_FILENO, STDOUT_FILENO);
   }
+  KillAllJobs();
   FinAlias();
   /* shell termination */
   free(cmdLine);
