@@ -66,7 +66,7 @@
 #define NBUILTINCOMMANDS (sizeof BuiltInCommands / sizeof(char*))
 
 static char* BuiltInCommands[] = {
-  "alias", "bg", "cd", "fg", "help", "jobs", "unalias"
+  "alias", "bg", "cd", "fg", "jobs", "unalias"
 };
 static char* TSHRC = ".tshrc";
 
@@ -90,7 +90,7 @@ aliasL *alist = NULL;
 
 /************Function Prototypes******************************************/
 /* run command */
-static void RunCmdFork(commandT*, bool);
+//static void RunCmdFork(commandT*, bool);
 /* runs an external program command after some checks */
 static void RunExternalCmd(commandT*, bool);
 /* resolves the path and checks for exutable flag */
@@ -124,19 +124,22 @@ char* InterpretAlias(aliasL*, char*);
 /**************Implementation***********************************************/
 void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
   int i;
-  int fd[2] = {fd_in, fd_out};
+  int fd[2];
+  fd[0] = fd_in;
   for (i = 0; i < n; i++) {
     cmd[i]->fd_in = fd[0];
-    if (i == n-1) {
-      cmd[i]->fd_out = STDOUT_FILENO;
-    } else {
+    if (i != n-1) {
       pipe(fd);
       cmd[i]->fd_out = fd[1];
+    } else {
+      cmd[i]->fd_out = fd_out;
     }
     if (cmd[i]->argc > 0) {
       char* realcmd = InterpretAlias(alist, cmd[i]->argv[0]);
       if (realcmd) {
-        Interpret(realcmd, cmd[i]->fd_in, cmd[i]->fd_out);
+        int taskNum = 0;
+        commandT** aliasCmd = Interpret(realcmd, &taskNum);
+        RunCmd(aliasCmd, taskNum, cmd[i]->fd_in, cmd[i]->fd_out);
       } else if (IsBuiltIn(cmd[i]->argv[0])) {
         RunBuiltInCmd(cmd[i]);
       } else {
@@ -145,22 +148,23 @@ void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
     }
     ReleaseCmdT(&cmd[i]);
   }
+  free(cmd);
 }
 
-void RunCmdFork(commandT* cmd, bool fork) {
-}
+//void RunCmdFork(commandT* cmd, bool fork) {
+//}
 
-void RunCmdBg(commandT* cmd) {
-}
+//void RunCmdBg(commandT* cmd) {
+//}
 
-void RunCmdPipe(commandT** cmd, int n) {
-}
+//void RunCmdPipe(commandT** cmd, int n) {
+//}
 
-void RunCmdRedirOut(commandT* cmd, char* file) {
-}
+//void RunCmdRedirOut(commandT* cmd, char* file) {
+//}
 
-void RunCmdRedirIn(commandT* cmd, char* file) {
-}
+//void RunCmdRedirIn(commandT* cmd, char* file) {
+//}
 
 
 /*Try to run an external command*/
@@ -237,14 +241,14 @@ static void Exec(commandT* cmd, bool forceFork) {
       close(fd);
     }
     if (cmd->is_redirect_out) {
-      fd = open(cmd->redirect_out, O_WRONLY | O_CREAT | O_TRUNC , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+      fd = open(cmd->redirect_out, O_WRONLY | O_CREAT | O_TRUNC , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
       dup2(fd, STDOUT_FILENO);
       close(fd);
     }
-    if (cmd->bg != 1) {
-      tcsetpgrp(STDIN_FILENO, getpid());
-    }
-    setpgid(0, 0);
+    //if (cmd->bg != 1) {
+    //  tcsetpgrp(STDIN_FILENO, getpid());
+    //}
+    //setpgid(0, 0);
     execv(cmd->name, cmd->argv);
   } else { // parent process
     if (cmd->fd_in != STDIN_FILENO) {
@@ -271,6 +275,14 @@ static bool IsBuiltIn(char* cmd) {
 
 
 static void RunBuiltInCmd(commandT* cmd) {
+  if (cmd->fd_in != STDIN_FILENO) {
+    dup2(cmd->fd_in, STDIN_FILENO);
+    close(cmd->fd_in);
+  }
+  if (cmd->fd_out != STDOUT_FILENO) {
+    dup2(cmd->fd_out, STDOUT_FILENO);
+    close(cmd->fd_out);
+  }
   if (!strcmp(cmd->argv[0], "alias")) {
     if (cmd->argc == 1) {
       DisplayAlias(alist);
@@ -303,6 +315,12 @@ static void RunBuiltInCmd(commandT* cmd) {
     } else {
       DelAlias(&alist, cmd->argv[1]);
     }
+  }
+  if (cmd->fd_in != STDIN_FILENO) {
+    close(cmd->fd_in);
+  }
+  if (cmd->fd_out != STDOUT_FILENO) {
+    close(cmd->fd_out);
   }
 }
 

@@ -27,6 +27,8 @@
 #include "config.h"
 #endif
 
+ #include "runtime.h"
+
 /************System include***********************************************/
 
 /************Private include**********************************************/
@@ -57,7 +59,7 @@
  *    Input: a command line 
  *    Output: void
  ***********************************************************************/
-EXTERN void Interpret(char*, int, int);
+EXTERN commandT** Interpret(char*, int*);
 
 /************External Declaration*****************************************/
 

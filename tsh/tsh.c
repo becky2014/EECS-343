@@ -37,6 +37,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <unistd.h>
+#include <stdio.h>
 
 /************Private include**********************************************/
 #include "tsh.h"
@@ -63,34 +65,30 @@ static void sig_handler(int);
 
 /**************Implementation***********************************************/
 
-int main (int argc, char *argv[])
-{
+int main (int argc, char *argv[]) {
   /* Initialize command buffer */
   char* cmdLine = malloc(sizeof(char*)*BUFSIZE);
+  int taskNum;
+  commandT** cmd;
 
   /* shell initialization */
   if (signal(SIGINT, sig_handler) == SIG_ERR) PrintPError("SIGINT");
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
   if (signal(SIGQUIT, sig_handler) == SIG_ERR) PrintPError("SIGQUIT");
   InitAlias();
-  while (!forceExit) /* repeat forever */
-  {
+  while (!forceExit) { /* repeat forever */
     /* read command line */
     getCommandLine(&cmdLine, BUFSIZE);
-
-    if(strcmp(cmdLine, "exit") == 0)
-    {
+    if(strcmp(cmdLine, "exit") == 0) {
       forceExit=TRUE;
       continue;
     }
-
     /* checks the status of background jobs */
     CheckJobs();
-
     /* interpret command and line
      * includes executing of commands */
-    Interpret(cmdLine, 0, 1);
-
+    cmd = Interpret(cmdLine, &taskNum);
+    RunCmd(cmd, taskNum, STDIN_FILENO, STDOUT_FILENO);
   }
   FinAlias();
   /* shell termination */
@@ -98,8 +96,7 @@ int main (int argc, char *argv[])
   return 0;
 } /* end main */
 
-static void sig_handler(int signo)
-{
+static void sig_handler(int signo) {
   if (signo == SIGINT) {
   } else if (signo == SIGTSTP) {
   } else if (signo == SIGQUIT) {

@@ -92,7 +92,7 @@ EXTERN void RunCmd(commandT**, int, int, int);
  *    Input: a command structure
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmdBg(commandT*);
+//EXTERN void RunCmdBg(commandT*);
 
 /***********************************************************************
  *  Title: Runs two command with a pipe
@@ -101,7 +101,7 @@ EXTERN void RunCmdBg(commandT*);
  *    Input: two command structure
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmdPipe(commandT**, int);
+//EXTERN void RunCmdPipe(commandT**, int);
 
 /***********************************************************************
  *  Title: Runs two command with output redirection
@@ -110,7 +110,7 @@ EXTERN void RunCmdPipe(commandT**, int);
  *    Input: a command structure structure and a file name
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmdRedirOut(commandT*, char*);
+//EXTERN void RunCmdRedirOut(commandT*, char*);
 
 /***********************************************************************
  *  Title: Runs two command with input redirection
@@ -119,7 +119,7 @@ EXTERN void RunCmdRedirOut(commandT*, char*);
  *    Input: a command structure structure and a file name
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmdRedirIn(commandT*, char*);
+//EXTERN void RunCmdRedirIn(commandT*, char*);
 
 /***********************************************************************
  *  Title: Stop the foreground process
