@@ -1,0 +1,31 @@
+NAME
+    tsh, a tiny shell
+
+SYNOPSIS
+    tsh
+
+DESCRIPTIONS
+    This is project 1 for EECS-343 (Operating System), Northwestern University.
+    This program implements a simple command line interpreter, behaving like
+    common Unix shell (sh, csh, tcsh, etc) allowing to run backgound and
+    foreground jobs, pipe output and redirect jobs' standard input or output.
+
+SPECIAL DESIGN
+    1. Alias Support
+        Alias Support is implemented by bi-link list. Alias commands will be
+        loaded from disk file when TSH starts. Operations on alias commands are
+        fully implemented in memory. And alias list will be written to disk,
+        when exit. In order to neatly process complex commands in alias, we
+        change the Interpret() function, and make RunCmd() recursive.
+    2. Pipe Support
+        Pipe is interesting, which is used for information redirection. It's
+        difficult to understand, but Dr. James Glenn gives out some examples.
+        This program uses a for loop to implement Pipe Support, creating pipe,
+        execv process and destroy pipe in each loop.
+
+
+AUTHOR
+    Libin Song <libinsong2020@u.northwestern.edu>
+
+SEE ALSO
+    bash, zsh
