@@ -66,10 +66,7 @@
 #define NBUILTINCOMMANDS (sizeof BuiltInCommands / sizeof(char*))
 
 static char* BuiltInCommands[] = {
-  "alias", "bg", "bind", "builtin", "caller", "cd", "command",
-  "declare", "echo", "enable", "fg", "help", "jobs", "let",
-  "local", "logout", "mapfile", "printf", "read", "readarray",
-  "source", "type", "typeset", "ulimit", "unalias"
+  "alias", "bg", "cd", "fg", "help", "jobs", "unalias"
 };
 static char* TSHRC = ".tshrc";
 
@@ -118,14 +115,16 @@ bool ReleaseAlias(aliasL*);
 void DisplayAlias(aliasL*);
 /* add alias */
 void AddAlias(aliasL**, char*);
+/* delete an alias */
+void DelAlias(aliasL**, char*);
 /* get real command of alias */
 char* InterpretAlias(aliasL*, char*);
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
-void RunCmd(commandT** cmd, int n) {
+void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
   int i;
-  int fd[2] = {0, 1};
+  int fd[2] = {fd_in, fd_out};
   for (i = 0; i < n; i++) {
     cmd[i]->fd_in = fd[0];
     if (i == n-1) {
@@ -134,27 +133,24 @@ void RunCmd(commandT** cmd, int n) {
       pipe(fd);
       cmd[i]->fd_out = fd[1];
     }
-    RunCmdFork(cmd[i], TRUE);
+    if (cmd[i]->argc > 0) {
+      char* realcmd = InterpretAlias(alist, cmd[i]->argv[0]);
+      if (realcmd) {
+        Interpret(realcmd, cmd[i]->fd_in, cmd[i]->fd_out);
+      } else if (IsBuiltIn(cmd[i]->argv[0])) {
+        RunBuiltInCmd(cmd[i]);
+      } else {
+        RunExternalCmd(cmd[i], TRUE);
+      }
+    }
     ReleaseCmdT(&cmd[i]);
   }
 }
 
 void RunCmdFork(commandT* cmd, bool fork) {
-  if (cmd->argc<=0) {
-    return;
-  }
-  char* realcmd = InterpretAlias(alist, cmd->argv[0]);
-  if (realcmd) {
-    Interpret(realcmd);
-  } else if (IsBuiltIn(cmd->argv[0])) {
-    RunBuiltInCmd(cmd);
-  } else {
-    RunExternalCmd(cmd, fork);
-  }
 }
 
 void RunCmdBg(commandT* cmd) {
-  // TODO
 }
 
 void RunCmdPipe(commandT** cmd, int n) {
@@ -305,7 +301,7 @@ static void RunBuiltInCmd(commandT* cmd) {
     if (cmd->argc == 1) {
       printf("unalias: not enough arguments\n");
     } else {
-
+      DelAlias(&alist, cmd->argv[1]);
     }
   }
 }
@@ -360,11 +356,11 @@ aliasL* ReadInAlias(char* file) {
 bool WriteAlias(aliasL* head, char* file) {
   FILE* fp;
   aliasL* ptr = head;
-  if (!head || !file) {
+  if (!file) {
     return FALSE;
   }
   fp = fopen(file, "w");
-  if (fp) {
+  if (fp && head) {
     do {
       fprintf(fp, "%s='%s'\n", ptr->name, ptr->cmd);
       ptr = ptr->child;
@@ -428,6 +424,29 @@ void AddAlias(aliasL** aliasHeadPtr, char* cmdline) {
       (*aliasHeadPtr)->parent = aliasNode;
     }
   }
+}
+
+void DelAlias(aliasL** aliasHeadPtr, char* cmd) {
+  aliasL *ptr = *aliasHeadPtr;
+  if (ptr) {
+    do {
+      if (!strcmp(ptr->name, cmd)) {
+        if (ptr == *aliasHeadPtr) {
+          if (ptr->child == ptr) {
+            *aliasHeadPtr = NULL;
+          } else {
+            *aliasHeadPtr = ptr->child;
+          }
+        }
+        ptr->parent->child = ptr->child;
+        ptr->child->parent = ptr->parent;
+        free(ptr);
+        return;
+      }
+      ptr = ptr->child;
+    } while (ptr != *aliasHeadPtr);
+  }
+  printf("unalias: no such hash table element %s\n", cmd);
 }
 
 char* InterpretAlias(aliasL* head, char* cmd) {

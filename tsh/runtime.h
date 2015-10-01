@@ -83,7 +83,7 @@ VAREXTERN(bool forceExit, FALSE);
  *    Input: a command structure
  *    Output: void
  ***********************************************************************/
-EXTERN void RunCmd(commandT**,int);
+EXTERN void RunCmd(commandT**, int, int, int);
 
 /***********************************************************************
  *  Title: Runs a command in background

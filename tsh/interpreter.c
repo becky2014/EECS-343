@@ -134,7 +134,7 @@ void parser_single(char *c, int sz, commandT** cd, int bg)
 
 /**************Implementation***********************************************/
 /*Parse the whole command line and split commands if a piped command is sent.*/
-void Interpret(char* cmdLine)
+void Interpret(char* cmdLine, int fd_in, int fd_out)
 {
   int task = 1;
   int bg = 0, i,k,j = 0, quotation1 = 0, quotation2 = 0;
@@ -198,6 +198,6 @@ void Interpret(char* cmdLine)
   }
   parser_single(&(cmdLine[i-j]), j, &(command[task]),bg);
 
-  RunCmd(command, task+1);
+  RunCmd(command, task+1, fd_in, fd_out);
   free(command);
 }

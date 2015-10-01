@@ -89,7 +89,7 @@ int main (int argc, char *argv[])
 
     /* interpret command and line
      * includes executing of commands */
-    Interpret(cmdLine);
+    Interpret(cmdLine, 0, 1);
 
   }
   FinAlias();
