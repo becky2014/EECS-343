@@ -79,8 +79,16 @@ typedef struct alias_l {
 
 typedef struct bgjob_l {
   pid_t pid;
-  struct bgjob_l* next;
+//  int gid;
+  int jid;
+  char* status;
+  char* cmd;
+  bool isBack;
+  struct bgjob_l* parent;
+  struct bgjob_l* child;
 } bgjobL;
+
+
 
 /* the pids of the background processes */
 bgjobL *bgjobs = NULL;
@@ -106,11 +114,13 @@ void InitAlias();
 /* finalize aliae list */
 void FinAlias();
 /* read in alias from file */
-aliasL* ReadInAlias(char*);
-/* write alias to file */
-bool WriteAlias(aliasL*, char*);
-/* release alias */
-bool ReleaseAlias(aliasL*);
+aliasL* ReadInAliasList(char*);
+/* write alias list to file */
+bool WriteAliasList(aliasL*, char*);
+/* release alias list*/
+void ReleaseAliasList(aliasL*);
+/* release alias*/
+void ReleaseAlias(aliasL*);
 /* alias to string */
 void DisplayAlias(aliasL*);
 /* add alias */
@@ -119,6 +129,35 @@ void AddAlias(aliasL**, char*);
 void DelAlias(aliasL**, char*);
 /* get real command of alias */
 char* InterpretAlias(aliasL*, char*);
+/* display single job */
+void DisplayJob(bgjobL*);
+/* display job by pid */
+void DisplayPidJob(bgjobL*, pid_t);
+/* display background jobs */
+void DisplayJobs(bgjobL*);
+/* start suspend job in backgroud */
+void BGJob(bgjobL*, int);
+/* bring background in foreground */
+void FGJob(bgjobL*, int);
+/* kill foreground job */
+void KillFGJob();
+/* suspend forground job */
+void SuspendFGJob();
+/* kill all jobs */
+void KillAllJobs(bgjobL*);
+/* add new job to job list */
+void AddJob(bgjobL**, pid_t, char*, bool);
+/* release job */
+void ReleaseJob(bgjobL*);
+/* delete job from bgjobs */
+void DelJob(bgjobL**, pid_t);
+/* change job status */
+void ChangeJobStatus(bgjobL*, pid_t, char*, bool);
+/* suspend job */
+void SuspendJob(bgjobL*, pid_t);
+/* resume job */
+void ResumeJob(bgjobL*, pid_t);
+
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
@@ -226,6 +265,7 @@ static bool ResolveExternalCmd(commandT* cmd) {
 static void Exec(commandT* cmd, bool forceFork) {
   int fd;
   int pid = fork();
+  int status;
   if (pid == 0) { // child prcess
     if (cmd->fd_in != STDIN_FILENO) {
       dup2(cmd->fd_in, STDIN_FILENO);
@@ -245,20 +285,22 @@ static void Exec(commandT* cmd, bool forceFork) {
       dup2(fd, STDOUT_FILENO);
       close(fd);
     }
-    //if (cmd->bg != 1) {
-    //  tcsetpgrp(STDIN_FILENO, getpid());
-    //}
-    //setpgid(0, 0);
+    setpgid(0, 0);
     execv(cmd->name, cmd->argv);
   } else { // parent process
-    if (cmd->fd_in != STDIN_FILENO) {
-      close(cmd->fd_in);
-    }
-    if (cmd->fd_out != STDOUT_FILENO) {
-      close(cmd->fd_out);
-    }
-    if (cmd->bg == 1) { // background job
-    } else { // foreground job
+    if (cmd->fd_in != STDIN_FILENO) close(cmd->fd_in);
+    if (cmd->fd_out != STDOUT_FILENO) close(cmd->fd_out);
+    AddJob(&bgjobs, pid, cmd->cmdline, (bool)cmd->bg);
+    if (cmd->bg != 1) { // foreground job
+      tcsetpgrp(STDIN_FILENO, pid);
+      waitpid(pid, &status, WUNTRACED);
+      tcsetpgrp(STDIN_FILENO, getpgid(0));
+      if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
+        SuspendJob(bgjobs, pid);
+      } else { // job terminated
+        if (kill(pid, 0)) kill(pid, SIGINT);
+        DelJob(&bgjobs, pid);
+      }
     }
   }
 }
@@ -304,11 +346,13 @@ static void RunBuiltInCmd(commandT* cmd) {
       perror(err);
     }
   } else if (!strcmp(cmd->argv[0], "bg")) {
-
+    if (cmd->argc == 1) BGJob(bgjobs, -1);
+    else BGJob(bgjobs, atoi(cmd->argv[1]));
   } else if (!strcmp(cmd->argv[0], "fg")) {
-
+    if (cmd->argc == 1) FGJob(bgjobs, -1);
+    else FGJob(bgjobs, atoi(cmd->argv[1]));
   } else if (!strcmp(cmd->argv[0], "jobs")) {
-
+    DisplayJobs(bgjobs);
   } else if (!strcmp(cmd->argv[0], "unalias")) {
     if (cmd->argc == 1) {
       printf("unalias: not enough arguments\n");
@@ -353,7 +397,7 @@ void ReleaseCmdT(commandT **cmd) {
   free(*cmd);
 }
 
-aliasL* ReadInAlias(char* file) {
+aliasL* ReadInAliasList(char* file) {
   char* line = NULL;
   size_t len = 0;
   aliasL* aliasHead = NULL;
@@ -371,7 +415,7 @@ aliasL* ReadInAlias(char* file) {
   return aliasHead;
 }
 
-bool WriteAlias(aliasL* head, char* file) {
+bool WriteAliasList(aliasL* head, char* file) {
   FILE* fp;
   aliasL* ptr = head;
   if (!file) {
@@ -388,18 +432,24 @@ bool WriteAlias(aliasL* head, char* file) {
   return TRUE;
 }
 
-bool ReleaseAlias(aliasL* head) {
-  if (!head) {
-    return FALSE;
+void ReleaseAliasList(aliasL* head) {
+  if (head) {
+    aliasL *a, *b;
+    a = head;
+    do {
+      b = a->child;
+      ReleaseAlias(a);
+      a = b;
+    } while (a != head);
   }
-  aliasL *a;
-  a = head->child;
-  while (a != head) {
-    free(a->parent);
-    a = a->child;
+}
+
+void ReleaseAlias(aliasL* node) {
+  if (node) {
+    if (node->name) free(node->name);
+    if (node->cmd) free(node->cmd);
+    free(node);
   }
-  free(head);
-  return TRUE;
 }
 
 
@@ -458,7 +508,7 @@ void DelAlias(aliasL** aliasHeadPtr, char* cmd) {
         }
         ptr->parent->child = ptr->child;
         ptr->child->parent = ptr->parent;
-        free(ptr);
+        ReleaseAlias(ptr);
         return;
       }
       ptr = ptr->child;
@@ -482,13 +532,194 @@ char* InterpretAlias(aliasL* head, char* cmd) {
 }
 
 void InitAlias() {
-  alist = ReadInAlias(TSHRC);
+  alist = ReadInAliasList(TSHRC);
 }
 
 void FinAlias() {
-  WriteAlias(alist, TSHRC);
-  ReleaseAlias(alist);
+  WriteAliasList(alist, TSHRC);
+  ReleaseAliasList(alist);
 }
+
+void DisplayJob(bgjobL* jb) {
+  printf("[%d]\t%d\t%s\t%s\n", jb->jid, jb->pid, jb->status, jb->cmd);
+}
+
+void DisplayPidJob(bgjobL* bgjobHead, pid_t pid) {
+  bgjobL* a = bgjobHead;
+  if (a) {
+    do {
+      if (a->pid == pid) {
+        DisplayJob(a);
+        return;
+      }
+      a = a->child;
+    } while (a != bgjobHead);
+  }
+}
+
+void DisplayJobs(bgjobL* bgjobHead) {
+  bgjobL* a = bgjobHead;
+  if (a) {
+    do {
+      DisplayJob(a);
+      a = a->child;
+    } while (a != bgjobHead);
+  }
+}
+
+void BGJob(bgjobL* bgjobHead, int jid) {
+  bgjobL* node = bgjobHead;
+  if (!node) {
+    printf("bg: no current job\n");
+  } else {
+  }
+}
+
+void FGJob(bgjobL* bgjobHead, int jid) {
+  bgjobL* node = bgjobHead;
+  int status;
+  if (!node) {
+    printf("fg: no current job\n");
+  } else {
+    if (jid > 0) {
+      do {
+        if (node->jid == jid) break;
+        node = node->child;
+      } while (node != bgjobHead);
+      if (node->jid != jid) {
+        printf("fg: %d: no such job", jid);
+        return;
+      }
+    }
+    if (!strcmp(node->status, "suspended")) {
+      kill(node->pid, SIGCONT);
+      ResumeJob(bgjobHead, node->pid);
+    }
+    DisplayJob(node);
+    tcsetpgrp(STDIN_FILENO, node->pid);
+    waitpid(node->pid, &status, WUNTRACED);
+    tcsetpgrp(STDIN_FILENO, getpgid(0));
+    if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
+      SuspendJob(bgjobs, node->pid);
+    } else { // job terminated
+      if (kill(node->pid, 0)) kill(node->pid, SIGINT);
+      DelJob(&bgjobs, node->pid);
+    }
+  }
+}
+
+void KillFGJob() {
+  bgjobL* node = bgjobs;
+  if (node) {
+    do {
+      if (!node->isBack) {
+        kill(node->pid, SIGINT);
+        printf("\n");
+        DelJob(&bgjobs, node->pid);
+        return;
+      }
+      node = node->child;
+    } while (node != bgjobs);
+  }
+}
+
+void SuspendFGJob() {
+  bgjobL* node = bgjobs;
+  if (node) {
+    do {
+      if (!node->isBack) {
+        kill(node->pid, SIGTSTP);
+        SuspendJob(bgjobs, node->pid);
+        printf("\n");
+        DisplayPidJob(bgjobs, node->pid);
+        return;
+      }
+      node = node->child;
+    } while (node != bgjobs);
+  }
+}
+
+
+void KillAllJobs(bgjobL* head) {
+  return;
+}
+
+void AddJob(bgjobL** bgjobHeadPtr, pid_t pid, char* cmd, bool back) {
+  bgjobL* node = (bgjobL*)malloc(sizeof(bgjobL));
+  node->pid = pid;
+  node->status = strdup("running");
+  node->cmd = strdup(cmd);
+  node->isBack = back;
+  if (!(*bgjobHeadPtr)) {
+    node->child = node;
+    node->parent = node;
+    node->jid = 1;
+    *bgjobHeadPtr = node;
+  } else {
+    node->child = *bgjobHeadPtr;
+    node->parent = (*bgjobHeadPtr)->parent;
+    node->jid = (*bgjobHeadPtr)->parent->jid + 1;
+    (*bgjobHeadPtr)->parent->child = node;
+    (*bgjobHeadPtr)->parent = node;
+  }
+}
+
+void ReleaseJob(bgjobL* p) {
+  if (p) {
+    if (p->status) free(p->status);
+    if (p->cmd) free(p->cmd);
+    free(p);
+  }
+}
+
+void DelJob(bgjobL** bgjobHeadPtr, pid_t pid) {
+  bgjobL *ptr = *bgjobHeadPtr;
+  if (ptr) {
+    do {
+      if (ptr->pid == pid) {
+        if (ptr == *bgjobHeadPtr) {
+          if (ptr->child == ptr) {
+            *bgjobHeadPtr = NULL;
+          } else {
+            *bgjobHeadPtr = ptr->child;
+          }
+        }
+        ptr->parent->child = ptr->child;
+        ptr->child->parent = ptr->parent;
+        ReleaseJob(ptr);
+        return;
+      }
+      ptr = ptr->child;
+    } while (ptr != *bgjobHeadPtr);
+  }
+}
+
+
+void ChangeJobStatus(bgjobL* bgjobHead, pid_t pid, char* s, bool back) {
+  bgjobL *ptr = bgjobHead;
+  if (ptr) {
+    do {
+      if (ptr->pid == pid) {
+        ptr->isBack = back;
+        free(ptr->status);
+        ptr->status = strdup(s);
+        return;
+      }
+      ptr = ptr->child;
+    } while (ptr != bgjobHead);
+  }
+}
+
+void SuspendJob(bgjobL* bgjobHead, pid_t pid) {
+  ChangeJobStatus(bgjobHead, pid, "suspended", TRUE);
+}
+
+
+void ResumeJob(bgjobL* bgjobHead, pid_t pid) {
+  ChangeJobStatus(bgjobHead, pid, "running", FALSE);
+}
+
+
 
 
 

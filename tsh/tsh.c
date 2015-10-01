@@ -74,7 +74,9 @@ int main (int argc, char *argv[]) {
   /* shell initialization */
   if (signal(SIGINT, sig_handler) == SIG_ERR) PrintPError("SIGINT");
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
-  if (signal(SIGQUIT, sig_handler) == SIG_ERR) PrintPError("SIGQUIT");
+  if (signal(SIGTTIN, SIG_IGN) == SIG_ERR) PrintPError("SIGTTIN");
+//  if (signal(SIGTTOU, SIG_IGN) == SIG_ERR) PrintPError("SIGTTOU");
+//  if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) PrintPError("SIGCHLD");
   InitAlias();
   while (!forceExit) { /* repeat forever */
     /* read command line */
@@ -98,8 +100,9 @@ int main (int argc, char *argv[]) {
 
 static void sig_handler(int signo) {
   if (signo == SIGINT) {
+    KillFGJob();
   } else if (signo == SIGTSTP) {
-  } else if (signo == SIGQUIT) {
+    SuspendFGJob();
   }
 }
 

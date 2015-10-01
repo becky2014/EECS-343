@@ -37,10 +37,10 @@
  *  variables should be in all lower case. When initializing
  *  structures and arrays, line everything up in neat columns.
  */
-typedef struct string_l {
-  char* s;
-  struct string_l* next;
-} stringL;
+//typedef struct string_l {
+//  char* s;
+//  struct string_l* next;
+//} stringL;
 
 /*Parse a single word from the param. Get rid of '"' or '''*/
 char* single_param(char *st)

@@ -128,7 +128,7 @@ EXTERN void RunCmd(commandT**, int, int, int);
  *    Input: void
  *    Output: void
  ***********************************************************************/
-EXTERN void StopFgProc();
+//EXTERN void StopFgProc();
 
 /***********************************************************************
  *  Title: Create a command structure 
@@ -155,7 +155,7 @@ EXTERN void ReleaseCmdT(commandT**);
  *    Input: void
  *    Output: a string containing the current working directory
  ***********************************************************************/
-EXTERN char* getCurrentWorkingDir();
+//EXTERN char* getCurrentWorkingDir();
 
 /***********************************************************************
  *  Title: Get user name 
@@ -164,7 +164,7 @@ EXTERN char* getCurrentWorkingDir();
  *    Input: void
  *    Output: a string containing the user name
  ***********************************************************************/
-EXTERN char* getLogin();
+//EXTERN char* getLogin();
 
 /***********************************************************************
  *  Title: Check the jobs 
@@ -179,6 +179,9 @@ EXTERN void InitAlias();
 
 EXTERN void FinAlias();
 
+EXTERN void KillFGJob();
+
+EXTERN void SuspendFGJob();
 
 /************External Declaration*****************************************/
 
