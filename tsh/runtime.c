@@ -298,7 +298,7 @@ static void Exec(commandT* cmd, bool forceFork) {
       if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
         SuspendJob(bgjobs, pid);
       } else { // job terminated
-        if (kill(pid, 0)) kill(pid, SIGINT);
+        //if (kill(pid, 0)) kill(pid, SIGINT);
         DelJob(&bgjobs, pid);
       }
     }
@@ -370,8 +370,30 @@ static void RunBuiltInCmd(commandT* cmd) {
 
 void CheckJobs() {
   bgjobL* node = bgjobs;
+  bgjobL* next;
   if (node) {
-
+    node = node->child;
+    while (node != bgjobs) {
+      next = node->child;
+      if (kill(node->pid, 0)) {
+        node->parent->child = node->child;
+        node->child->parent = node->parent;
+        ReleaseJob(node);
+      }
+      node = next;
+    }
+    if (kill(bgjobs->pid, 0)) {
+      if (bgjobs->child == bgjobs) {
+        ReleaseJob(bgjobs);
+        bgjobs = NULL;
+      } else {
+        node = bgjobs;
+        bgjobs = bgjobs->child;
+        node->parent->child = node->child;
+        node->child->parent = node->parent;
+        ReleaseJob(node);
+      }
+    }
   }
 }
 
@@ -623,7 +645,7 @@ void FGJob(bgjobL* bgjobHead, int jid) {
     if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
       SuspendJob(bgjobs, node->pid);
     } else { // job terminated
-      if (kill(node->pid, 0)) kill(node->pid, SIGINT);
+      //if (kill(node->pid, 0)) kill(node->pid, SIGINT);
       DelJob(&bgjobs, node->pid);
     }
   }
@@ -662,7 +684,17 @@ void SuspendFGJob() {
 
 
 void KillAllJobs() {
-  return;
+  bgjobL* head = bgjobs;
+  if (head) {
+    bgjobL *a, *b;
+    a = head;
+    do {
+      b = a->child;
+      kill(a->pid, SIGINT);
+      ReleaseJob(a);
+      a = b;
+    } while (a != head);
+  }
 }
 
 void AddJob(bgjobL** bgjobHeadPtr, pid_t pid, char* cmd, bool back) {
