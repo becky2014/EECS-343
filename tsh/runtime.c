@@ -68,7 +68,7 @@
 static char* BuiltInCommands[] = {
   "alias", "bg", "cd", "fg", "jobs", "unalias"
 };
-static char* TSHRC = ".tshrc";
+//static char* TSHRC = ".tshrc";
 
 typedef struct alias_l {
   char* name;
@@ -154,11 +154,11 @@ void DelJob(bgjobL**, pid_t);
 /* change job status */
 void ChangeJobStatus(bgjobL*, pid_t, char*, bool);
 /* suspend job */
-void SuspendJob(bgjobL*, pid_t);
+void SuspendJob(bgjobL*, pid_t, bool);
 /* resume job */
-void ResumeJob(bgjobL*, pid_t);
-/* strip '&' sign in cmd */
-char* CmdBackSignStrip(char*);
+void ResumeJob(bgjobL*, pid_t, bool);
+/* format cmd */
+char* CmdFormat(char*, bool);
 
 /************External Declaration*****************************************/
 
@@ -191,21 +191,6 @@ void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
   }
   free(cmd);
 }
-
-//void RunCmdFork(commandT* cmd, bool fork) {
-//}
-
-//void RunCmdBg(commandT* cmd) {
-//}
-
-//void RunCmdPipe(commandT** cmd, int n) {
-//}
-
-//void RunCmdRedirOut(commandT* cmd, char* file) {
-//}
-
-//void RunCmdRedirIn(commandT* cmd, char* file) {
-//}
 
 
 /*Try to run an external command*/
@@ -298,7 +283,7 @@ static void Exec(commandT* cmd, bool forceFork) {
       waitpid(pid, &status, WUNTRACED);
       tcsetpgrp(STDIN_FILENO, getpgid(0));
       if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
-        SuspendJob(bgjobs, pid);
+        SuspendJob(bgjobs, pid, FALSE);
       } else { // job terminated
         //if (kill(pid, 0)) kill(pid, SIGINT);
         DelJob(&bgjobs, pid);
@@ -379,8 +364,10 @@ void CheckJobs() {
     while (node != bgjobs) {
       next = node->child;
       if (kill(node->pid, 0)) {
-        sprintf(str_out,"[%d]   Done                   %s\n", node->jid, CmdBackSignStrip(node->cmd));
-        write(STDOUT_FILENO, str_out, strlen(str_out));
+        sprintf(str_out,"[%d]   Done                   %s\n", node->jid, node->cmd);
+        if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
+          perror("write error in CheckJobs");
+        }
         node->parent->child = node->child;
         node->child->parent = node->parent;
         ReleaseJob(node);
@@ -388,8 +375,10 @@ void CheckJobs() {
       node = next;
     }
     if (kill(bgjobs->pid, 0)) {
-      sprintf(str_out,"[%d]   Done                   %s\n", bgjobs->jid, CmdBackSignStrip(bgjobs->cmd));
-      write(STDOUT_FILENO, str_out, strlen(str_out));
+      sprintf(str_out,"[%d]   Done                   %s\n", bgjobs->jid, node->cmd);
+      if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
+        perror("write error in CheckJobs");
+      }
       if (bgjobs->child == bgjobs) {
         ReleaseJob(bgjobs);
         bgjobs = NULL;
@@ -524,10 +513,32 @@ void AddAlias(aliasL** aliasHeadPtr, char* cmdline) {
       aliasNode->parent = aliasNode;
       *aliasHeadPtr = aliasNode;
     } else {
-      aliasNode->child = *aliasHeadPtr;
-      aliasNode->parent = (*aliasHeadPtr)->parent;
-      (*aliasHeadPtr)->parent->child = aliasNode;
-      (*aliasHeadPtr)->parent = aliasNode;
+      aliasL* node = *aliasHeadPtr;
+      do {
+        if (strcmp(node->name, aliasNode->name) == 0) {
+          free(node->cmd);
+          node->cmd = strdup(cmdline);
+          ReleaseAlias(aliasNode);
+          break;
+        } else if (strcmp(node->name, aliasNode->name) > 0) {
+          aliasNode->child = node;
+          aliasNode->parent = node->parent;;
+          node->parent->child = aliasNode;
+          node->parent = aliasNode;
+          if (node == *aliasHeadPtr) {
+            *aliasHeadPtr = (*aliasHeadPtr)->parent;
+          }
+          break;
+        } else {
+          node = node->child;
+        }
+      } while (node != *aliasHeadPtr);
+      if (node == *aliasHeadPtr) {
+        aliasNode->child = node;
+        aliasNode->parent = node->parent;;
+        node->parent->child = aliasNode;
+        node->parent = aliasNode;
+      }
     }
   }
 }
@@ -579,9 +590,13 @@ void FinAlias() {
 }
 
 void DisplayJob(bgjobL* jb) {
+  char* formattedCmd = CmdFormat(jb->cmd, jb->isBack);
   char str_out[100];
-  sprintf(str_out, "[%d]   %s                %s\n", jb->jid, jb->status, jb->cmd);
-  write(STDOUT_FILENO, str_out, strlen(str_out));
+  sprintf(str_out, "[%d]   %s                %s\n", jb->jid, jb->status, formattedCmd);
+  if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
+    perror("write error in DisplayJob");
+  }
+  free(formattedCmd);
 }
 
 void DisplayPidJob(bgjobL* bgjobHead, pid_t pid) {
@@ -627,8 +642,7 @@ void BGJob(bgjobL* bgjobHead, int jid) {
       return;
     }
     kill(node->pid, SIGCONT);
-    ResumeJob(bgjobHead, node->pid);
-    DisplayJob(node);
+    ResumeJob(bgjobHead, node->pid, TRUE);
   }
 }
 
@@ -650,14 +664,13 @@ void FGJob(bgjobL* bgjobHead, int jid) {
     }
     if (!strcmp(node->status, "Stopped")) {
       kill(node->pid, SIGCONT);
-      ResumeJob(bgjobHead, node->pid);
+      ResumeJob(bgjobHead, node->pid, FALSE);
     }
-    DisplayJob(node);
     tcsetpgrp(STDIN_FILENO, node->pid);
     waitpid(node->pid, &status, WUNTRACED);
     tcsetpgrp(STDIN_FILENO, getpgid(0));
     if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
-      SuspendJob(bgjobs, node->pid);
+      SuspendJob(bgjobs, node->pid, FALSE);
     } else { // job terminated
       //if (kill(node->pid, 0)) kill(node->pid, SIGINT);
       DelJob(&bgjobs, node->pid);
@@ -671,7 +684,6 @@ void KillFGJob() {
     do {
       if (!node->isBack) {
         kill(node->pid, SIGINT);
-        printf("\n");
         DelJob(&bgjobs, node->pid);
         return;
       }
@@ -686,8 +698,7 @@ void SuspendFGJob() {
     do {
       if (!node->isBack) {
         kill(node->pid, SIGTSTP);
-        SuspendJob(bgjobs, node->pid);
-        printf("\n");
+        SuspendJob(bgjobs, node->pid, FALSE);
         DisplayPidJob(bgjobs, node->pid);
         return;
       }
@@ -715,17 +726,7 @@ void AddJob(bgjobL** bgjobHeadPtr, pid_t pid, char* cmd, bool back) {
   bgjobL* node = (bgjobL*)malloc(sizeof(bgjobL));
   node->pid = pid;
   node->status = strdup("Running");
-  if (back) {
-    char cmd_cpy[100];
-    strcpy(cmd_cpy, cmd);
-    int len = strlen(cmd_cpy);
-    cmd_cpy[len - 1] = ' ';
-    cmd_cpy[len] = '&';
-    cmd_cpy[len + 1] = 0;
-    node->cmd = strdup(cmd_cpy);
-  } else {
-    node->cmd = strdup(cmd);
-  }
+  node->cmd = strdup(cmd);
   node->isBack = back;
   if (!(*bgjobHeadPtr)) {
     node->child = node;
@@ -787,22 +788,26 @@ void ChangeJobStatus(bgjobL* bgjobHead, pid_t pid, char* s, bool back) {
   }
 }
 
-void SuspendJob(bgjobL* bgjobHead, pid_t pid) {
-  ChangeJobStatus(bgjobHead, pid, "Stopped", TRUE);
+void SuspendJob(bgjobL* bgjobHead, pid_t pid, bool isBack) {
+  ChangeJobStatus(bgjobHead, pid, "Stopped", isBack);
 }
 
 
-void ResumeJob(bgjobL* bgjobHead, pid_t pid) {
-  ChangeJobStatus(bgjobHead, pid, "Running", FALSE);
+void ResumeJob(bgjobL* bgjobHead, pid_t pid, bool isBack) {
+  ChangeJobStatus(bgjobHead, pid, "Running", isBack);
 }
 
-char* CmdBackSignStrip(char* cmd) {
-  int len = strlen(cmd);
-  if (cmd[len-1] == '&') {
-    cmd[len-1] = 0;
+char* CmdFormat(char* cmd, bool isBack) {
+  if (!isBack) {
+    return strdup(cmd);
+  } else {
+    char* formattedCmd = (char*)malloc(sizeof(char) * 100);
+    strcpy(formattedCmd, cmd);
+    int len = strlen(formattedCmd);
+    formattedCmd[len] = ' ';
+    formattedCmd[len + 1] = '&';
+    formattedCmd[len + 2] = 0;
+    return formattedCmd;
   }
-  return cmd;
 }
-
-
 
