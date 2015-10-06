@@ -468,12 +468,17 @@ bool WriteAliasList(aliasL* head, char* file) {
 void ReleaseAliasList(aliasL* head) {
   if (head) {
     aliasL *a, *b;
-    a = head;
-    do {
-      b = a->child;
-      ReleaseAlias(a);
-      a = b;
-    } while (a != head);
+    a = head->child;
+    if (a == head) {
+      ReleaseAlias(head);
+    } else {
+      do {
+        b = a->child;
+        ReleaseAlias(a);
+        a = b;
+      } while (a != head);
+      ReleaseAlias(head);
+    }
   }
 }
 
@@ -490,7 +495,7 @@ void DisplayAlias(aliasL* head) {
   aliasL *ptr = head;
   if (ptr) {
     do {
-      printf("%s='%s'\n", ptr->name, ptr->cmd);
+      printf("alias %s='%s'\n", ptr->name, ptr->cmd);
       ptr = ptr->child;
     } while (ptr != head);
   } else {
@@ -513,7 +518,7 @@ void AddAlias(aliasL** aliasHeadPtr, char* cmdline) {
     }
     aliasNode = (aliasL*)malloc(sizeof(aliasL));
     aliasNode->name = name;
-    aliasNode->cmd = cmd;
+    aliasNode->cmd = strdup(cmd);
     if (!(*aliasHeadPtr)) {
       aliasNode->child = aliasNode;
       aliasNode->parent = aliasNode;
@@ -565,11 +570,11 @@ char* InterpretAlias(aliasL* head, char* cmd) {
 }
 
 void InitAlias() {
-  alist = ReadInAliasList(TSHRC);
+  //alist = ReadInAliasList(TSHRC);
 }
 
 void FinAlias() {
-  WriteAliasList(alist, TSHRC);
+  //WriteAliasList(alist, TSHRC);
   ReleaseAliasList(alist);
 }
 
