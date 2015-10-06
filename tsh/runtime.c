@@ -177,8 +177,19 @@ void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
       cmd[i]->fd_out = fd_out;
     }
     if (cmd[i]->argc > 0) {
-      char* realcmd = InterpretAlias(alist, cmd[i]->argv[0]);
-      if (realcmd) {
+      if (InterpretAlias(alist, cmd[i]->argv[0])) {
+        int j;
+        char* rcmd = NULL;
+        char* realcmd = (char*)malloc(sizeof(char) * 1024);
+        for (j = 0; j < cmd[i]->argc; j++) {
+          rcmd = InterpretAlias(alist, cmd[i]->argv[j]);
+          strcat(realcmd, " ");
+          if (rcmd) {
+            strcat(realcmd, rcmd);
+          } else {
+            strcat(realcmd, cmd[i]->argv[j]);
+          }
+        }
         int taskNum = 0;
         commandT** aliasCmd = Interpret(realcmd, &taskNum);
         RunCmd(aliasCmd, taskNum, cmd[i]->fd_in, cmd[i]->fd_out);
