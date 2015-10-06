@@ -79,7 +79,6 @@ typedef struct alias_l {
 
 typedef struct bgjob_l {
   pid_t pid;
-//  int gid;
   int jid;
   char* status;
   char* cmd;
@@ -170,7 +169,9 @@ void RunCmd(commandT** cmd, int n, int fd_in, int fd_out) {
   for (i = 0; i < n; i++) {
     cmd[i]->fd_in = fd[0];
     if (i != n-1) {
-      pipe(fd);
+      if (pipe(fd) == -1) {
+        perror("pipe error in RunCmd");
+      }
       cmd[i]->fd_out = fd[1];
     } else {
       cmd[i]->fd_out = fd_out;
@@ -326,7 +327,20 @@ static void RunBuiltInCmd(commandT* cmd) {
     if (cmd->argc == 1) {
       dir = getenv("HOME");
     } else {
-      dir = cmd->argv[1];
+      if ((cmd->argv[1])[0] == '~') {
+        char* fulldir = (char*)malloc(sizeof(char) * 256);
+        char* homedir = getenv("HOME");
+        strcat(fulldir, homedir);
+        if (strlen(cmd->argv[1]) > 2) {
+          char subdir[128];
+          memcpy(subdir, &(cmd->argv[1])[1], strlen(cmd->argv[1]) - 1);
+          subdir[strlen(cmd->argv[1])] = 0;
+          strcat(fulldir, subdir);
+        }
+        dir = fulldir;
+      } else {
+        dir = cmd->argv[1];
+      }
     }
     sprintf(err, "cd: fail to change directory: %s\n", dir);
     if (chdir(dir)) {
@@ -356,7 +370,7 @@ static void RunBuiltInCmd(commandT* cmd) {
 }
 
 void CheckJobs() {
-  char str_out[100];
+  char str_out[128];
   bgjobL* node = bgjobs;
   bgjobL* next;
   if (node) {
@@ -591,7 +605,7 @@ void FinAlias() {
 
 void DisplayJob(bgjobL* jb) {
   char* formattedCmd = CmdFormat(jb->cmd, jb->isBack);
-  char str_out[100];
+  char str_out[128];
   sprintf(str_out, "[%d]   %s                %s\n", jb->jid, jb->status, formattedCmd);
   if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
     perror("write error in DisplayJob");
@@ -801,7 +815,7 @@ char* CmdFormat(char* cmd, bool isBack) {
   if (!isBack) {
     return strdup(cmd);
   } else {
-    char* formattedCmd = (char*)malloc(sizeof(char) * 100);
+    char* formattedCmd = (char*)malloc(sizeof(char) * 128);
     strcpy(formattedCmd, cmd);
     int len = strlen(formattedCmd);
     formattedCmd[len] = ' ';
