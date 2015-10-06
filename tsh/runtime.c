@@ -376,6 +376,10 @@ void CheckJobs() {
     while (node != bgjobs) {
       next = node->child;
       if (kill(node->pid, 0)) {
+        char str_out[100];
+        sprintf(str_out,"[%d]   Done                   %s\n", node->jid, node->cmd);
+        write(1,str_out,strlen(str_out));
+        //printf("[%d]   Done                   %s\n", node->jid, node->cmd);
         node->parent->child = node->child;
         node->child->parent = node->parent;
         ReleaseJob(node);
@@ -383,6 +387,10 @@ void CheckJobs() {
       node = next;
     }
     if (kill(bgjobs->pid, 0)) {
+      char str_out[100];
+      sprintf(str_out,"[%d]   Done                   %s\n", bgjobs->jid, bgjobs->cmd);
+      write(1,str_out,strlen(str_out));
+      //printf("[%d]   Done                   %s\n", bgjobs->jid, bgjobs->cmd);
       if (bgjobs->child == bgjobs) {
         ReleaseJob(bgjobs);
         bgjobs = NULL;
@@ -567,7 +575,7 @@ void FinAlias() {
 }
 
 void DisplayJob(bgjobL* jb) {
-  printf("[%d]\t%d\t%s\t%s\n", jb->jid, jb->pid, jb->status, jb->cmd);
+  printf("[%d]   %s                %s\n", jb->jid, jb->status, jb->cmd);
 }
 
 void DisplayPidJob(bgjobL* bgjobHead, pid_t pid) {
@@ -608,7 +616,7 @@ void BGJob(bgjobL* bgjobHead, int jid) {
         return;
       }
     }
-    if (!strcmp(node->status, "running")) {
+    if (!strcmp(node->status, "Running")) {
       printf("bg: job already in background!\n");
       return;
     }
@@ -634,7 +642,7 @@ void FGJob(bgjobL* bgjobHead, int jid) {
         return;
       }
     }
-    if (!strcmp(node->status, "suspended")) {
+    if (!strcmp(node->status, "Stopped")) {
       kill(node->pid, SIGCONT);
       ResumeJob(bgjobHead, node->pid);
     }
@@ -700,7 +708,7 @@ void KillAllJobs() {
 void AddJob(bgjobL** bgjobHeadPtr, pid_t pid, char* cmd, bool back) {
   bgjobL* node = (bgjobL*)malloc(sizeof(bgjobL));
   node->pid = pid;
-  node->status = strdup("running");
+  node->status = strdup("Running");
   node->cmd = strdup(cmd);
   node->isBack = back;
   if (!(*bgjobHeadPtr)) {
@@ -764,12 +772,12 @@ void ChangeJobStatus(bgjobL* bgjobHead, pid_t pid, char* s, bool back) {
 }
 
 void SuspendJob(bgjobL* bgjobHead, pid_t pid) {
-  ChangeJobStatus(bgjobHead, pid, "suspended", TRUE);
+  ChangeJobStatus(bgjobHead, pid, "Stopped", TRUE);
 }
 
 
 void ResumeJob(bgjobL* bgjobHead, pid_t pid) {
-  ChangeJobStatus(bgjobHead, pid, "running", FALSE);
+  ChangeJobStatus(bgjobHead, pid, "Running", FALSE);
 }
 
 

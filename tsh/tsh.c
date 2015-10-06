@@ -76,7 +76,7 @@ int main (int argc, char *argv[]) {
   if (signal(SIGTSTP, sig_handler) == SIG_ERR) PrintPError("SIGTSTP");
   if (signal(SIGTTIN, SIG_IGN) == SIG_ERR) PrintPError("SIGTTIN");
   if (signal(SIGTTOU, SIG_IGN) == SIG_ERR) PrintPError("SIGTTOU");
-//  if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) PrintPError("SIGCHLD");
+  if (signal(SIGCHLD, SIG_IGN) == SIG_ERR) PrintPError("SIGCHLD");
   InitAlias();
   while (!forceExit) { /* repeat forever */
     /* read command line */
