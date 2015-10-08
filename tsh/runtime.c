@@ -297,7 +297,7 @@ static void Exec(commandT* cmd, bool forceFork) {
       if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
         SuspendJob(bgjobs, pid, FALSE);
       } else { // job terminated
-        //if (kill(pid, 0)) kill(pid, SIGINT);
+        if (kill(pid, 0)) kill(pid, SIGINT);
         DelJob(&bgjobs, pid);
       }
     }
@@ -385,14 +385,20 @@ void CheckJobs() {
   bgjobL* node = bgjobs;
   bgjobL* next;
   if (node) {
-    node = node->child;
-    while (node != bgjobs) {
-      next = node->child;
+    do {
       if (kill(node->pid, 0)) {
         sprintf(str_out,"[%d]   Done                   %s\n", node->jid, node->cmd);
         if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
           perror("write error in CheckJobs");
         }
+      }
+      node = node->child;
+    } while (node != bgjobs);
+    node = bgjobs;
+    node = node->child;
+    while (node != bgjobs) {
+      next = node->child;
+      if (kill(node->pid, 0)) {
         node->parent->child = node->child;
         node->child->parent = node->parent;
         ReleaseJob(node);
@@ -400,10 +406,6 @@ void CheckJobs() {
       node = next;
     }
     if (kill(bgjobs->pid, 0)) {
-      sprintf(str_out,"[%d]   Done                   %s\n", bgjobs->jid, node->cmd);
-      if (write(STDOUT_FILENO, str_out, strlen(str_out)) == -1) {
-        perror("write error in CheckJobs");
-      }
       if (bgjobs->child == bgjobs) {
         ReleaseJob(bgjobs);
         bgjobs = NULL;
@@ -697,7 +699,7 @@ void FGJob(bgjobL* bgjobHead, int jid) {
     if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
       SuspendJob(bgjobs, node->pid, FALSE);
     } else { // job terminated
-      //if (kill(node->pid, 0)) kill(node->pid, SIGINT);
+      if (kill(node->pid, 0)) kill(node->pid, SIGINT);
       DelJob(&bgjobs, node->pid);
     }
   }
@@ -740,7 +742,7 @@ void KillAllJobs() {
     a = head;
     do {
       b = a->child;
-      kill(a->pid, SIGINT);
+      kill(-a->pid, SIGINT);
       ReleaseJob(a);
       a = b;
     } while (a != head);
@@ -826,7 +828,7 @@ char* CmdFormat(char* cmd, bool isBack) {
   if (!isBack) {
     return strdup(cmd);
   } else {
-    char* formattedCmd = (char*)malloc(sizeof(char) * 128);
+    char* formattedCmd = (char*)malloc(sizeof(char) * 256);
     strcpy(formattedCmd, cmd);
     int len = strlen(formattedCmd);
     formattedCmd[len] = ' ';
