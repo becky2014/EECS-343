@@ -35,6 +35,13 @@ SPECIAL DESIGN
         recursive function RunCmd() will automatically join
         multiple commands with pipes.
 
+NOTE
+    I've tested with testcase. Passed 29 regular cases and 7
+    extra cases. I can't pass test18, I don't know why. As I
+    can successfully test it manually. For test37, it's about
+    the bash specification. For test38, 'ls' command is actually
+    external command, but it doesn't recognize '~'sign.
+
 
 AUTHOR
     Libin Song <libinsong2020@u.northwestern.edu>
