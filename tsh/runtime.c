@@ -291,11 +291,11 @@ static void Exec(commandT* cmd, bool forceFork) {
     if (cmd->fd_out != STDOUT_FILENO) close(cmd->fd_out);
     AddJob(&bgjobs, pid, cmd->cmdline, (bool)cmd->bg);
     if (cmd->bg != 1) { // foreground job
-      tcsetpgrp(STDIN_FILENO, pid);
+      //tcsetpgrp(STDIN_FILENO, pid);
       waitpid(pid, &status, WUNTRACED);
-      tcsetpgrp(STDIN_FILENO, getpgid(0));
+      //tcsetpgrp(STDIN_FILENO, getpgid(0));
       if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
-        SuspendJob(bgjobs, pid, FALSE);
+        //SuspendJob(bgjobs, pid, FALSE);
       } else { // job terminated
         if (kill(pid, 0)) kill(pid, SIGINT);
         DelJob(&bgjobs, pid);
@@ -693,11 +693,11 @@ void FGJob(bgjobL* bgjobHead, int jid) {
       kill(node->pid, SIGCONT);
       ResumeJob(bgjobHead, node->pid, FALSE);
     }
-    tcsetpgrp(STDIN_FILENO, node->pid);
+    //tcsetpgrp(STDIN_FILENO, node->pid);
     waitpid(node->pid, &status, WUNTRACED);
-    tcsetpgrp(STDIN_FILENO, getpgid(0));
+    //tcsetpgrp(STDIN_FILENO, getpgid(0));
     if (WIFSTOPPED(status)) { // job suspended by SIGTSTP
-      SuspendJob(bgjobs, node->pid, FALSE);
+      //SuspendJob(bgjobs, node->pid, FALSE);
     } else { // job terminated
       if (kill(node->pid, 0)) kill(node->pid, SIGINT);
       DelJob(&bgjobs, node->pid);
