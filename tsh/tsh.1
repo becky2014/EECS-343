@@ -18,14 +18,22 @@ SPECIAL DESIGN
         Operations on alias commands are fully implemented in
         memory. And alias list will be written to disk, when
         exit. In order to neatly process complex commands in
-        alias, we change the Interpret() function, and make
-        RunCmd() recursive.
+        alias, e.g. the alias command contains pipe commands,
+        we change the Interpret() function, and make RunCmd()
+        recursive.
     2. Pipe Support
         Pipe is interesting, which is used for information
         redirection. It's difficult to understand, but Dr.
         James Glenn gives out some examples. This program uses
         a for loop to implement Pipe Support, creating pipe,
-        execv process and destroy pipe in each loop.
+        execv process and destroy pipe in each loop. As
+        indicated above, the RunCmd() function is recursive,
+        which provide convenience for pipe implementation.
+        RunCmd(commandT** cmd, int n, int fd_in, int fd_out)
+        It's required to provide in&out stream descriptors.
+        So if there're more than two separate commands,
+        recursive function RunCmd() will automatically join
+        multiple commands with pipes.
 
 
 AUTHOR
