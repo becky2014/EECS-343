@@ -40,7 +40,7 @@
  Project Group: NetID1, NetID2, NetID3
  
  ***************************************************************************/
- 
+
 #ifdef KMA_LZBUD
 #define __KMA_IMPL__
 
@@ -67,13 +67,11 @@
 
 /**************Implementation***********************************************/
 
-void* kma_malloc(kma_size_t size)
-{
+void* kma_malloc(kma_size_t size) {
   return NULL;
 }
 
-void kma_free(void* ptr, kma_size_t size)
-{
+void kma_free(void* ptr, kma_size_t size) {
   ;
 }
 

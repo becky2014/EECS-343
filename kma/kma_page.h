@@ -85,19 +85,17 @@
  ***********************************************************************/
 #define BASEADDR(x) ((void*)(((long) (x)) & ~(PAGESIZE-1)))
 
-typedef struct
-{
-  int id;
-  void* ptr;
-  int size;
+typedef struct {
+    int id;
+    void *ptr;
+    int size;
 } kma_page_t;
 
-typedef struct
-{
-  int num_requested;
-  int num_freed;
-  int num_in_use;
-  int page_size;
+typedef struct {
+    int num_requested;
+    int num_freed;
+    int num_in_use;
+    int page_size;
 } kma_page_stat_t;
 
 /************Global Variables*********************************************/
@@ -111,7 +109,7 @@ typedef struct
  *    Input: none
  *    Output: the allocated memory page
  ***********************************************************************/
-EXTERN kma_page_t* get_page();
+EXTERN kma_page_t *get_page();
 
 /***********************************************************************
  *  Title: Releases a memory page 
@@ -120,7 +118,7 @@ EXTERN kma_page_t* get_page();
  *    Input: the pointer to the memory page structure
  *    Output: none
  ***********************************************************************/
-EXTERN void free_page(kma_page_t*);
+EXTERN void free_page(kma_page_t *);
 
 /***********************************************************************
  *  Title: Memory page statistics
@@ -129,7 +127,7 @@ EXTERN void free_page(kma_page_t*);
  *    Input: none 
  *    Output: the memory page statistics in a static buffer
  ***********************************************************************/
-EXTERN kma_page_stat_t* page_stats();
+EXTERN kma_page_stat_t *page_stats();
 
 /************External Declaration*****************************************/
 

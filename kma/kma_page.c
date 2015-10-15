@@ -47,7 +47,7 @@
  
  ***************************************************************************/
 
- #define __KPAGE_IMPL__
+#define __KPAGE_IMPL__
 
 /************System include***********************************************/
 #include <assert.h>
@@ -68,123 +68,110 @@
  */
 
 /************Global Variables*********************************************/
-static kma_page_stat_t kma_page_stats = { 0, 0, 0, PAGESIZE };
+static kma_page_stat_t kma_page_stats = {0, 0, 0, PAGESIZE};
 
-static void* pool = NULL;
-static void* next_free_page = NULL;
+static void *pool = NULL;
+static void *next_free_page = NULL;
 
 /************Function Prototypes******************************************/
-void* allocPage();
-void freePage(void*);
+void *allocPage();
+
+void freePage(void *);
+
 void initPages();
 
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
 
-kma_page_t*
-get_page()
-{
-  static int id = 0;
-  kma_page_t* res;
-  
-  kma_page_stats.num_requested++;
-  kma_page_stats.num_in_use++;
-  
-  res = (kma_page_t*) malloc(sizeof(kma_page_t));
-  res->id = id++;
-  res->size = kma_page_stats.page_size;
-  res->ptr = allocPage();
-  
-  assert(res->ptr != NULL);
-  
-  return res;	
+kma_page_t *
+get_page() {
+    static int id = 0;
+    kma_page_t *res;
+
+    kma_page_stats.num_requested++;
+    kma_page_stats.num_in_use++;
+
+    res = (kma_page_t *) malloc(sizeof(kma_page_t));
+    res->id = id++;
+    res->size = kma_page_stats.page_size;
+    res->ptr = allocPage();
+
+    assert(res->ptr != NULL);
+
+    return res;
 }
 
-void
-free_page(kma_page_t* ptr)
-{
-  assert(ptr != NULL);
-  assert(ptr->ptr != NULL);
-  assert(kma_page_stats.num_in_use > 0);
-  
-  kma_page_stats.num_freed++;
-  kma_page_stats.num_in_use--;
-  
-  freePage(ptr->ptr);
-  free(ptr);
+void free_page(kma_page_t *ptr) {
+    assert(ptr != NULL);
+    assert(ptr->ptr != NULL);
+    assert(kma_page_stats.num_in_use > 0);
+
+    kma_page_stats.num_freed++;
+    kma_page_stats.num_in_use--;
+
+    freePage(ptr->ptr);
+    free(ptr);
 }
 
-kma_page_stat_t*
-page_stats()
-{
-  static kma_page_stat_t stats;
-  
-  return memcpy(&stats, &kma_page_stats, sizeof(kma_page_stat_t));
+kma_page_stat_t *page_stats() {
+    static kma_page_stat_t stats;
+
+    return memcpy(&stats, &kma_page_stats, sizeof(kma_page_stat_t));
 }
 
-void*
-allocPage()
-{
-  void* res;
-  
-  if (pool == NULL)
-    {
-      initPages();
+void *allocPage() {
+    void *res;
+
+    if (pool == NULL) {
+        initPages();
     }
-  
-  res = next_free_page;
-  
-  if (res == NULL)
-    {
-      error("error: all pages already allocated", "");
+
+    res = next_free_page;
+
+    if (res == NULL) {
+        error("error: all pages already allocated", "");
     }
-  
-  next_free_page = *((void**)next_free_page);
-  
-  assert(res != NULL);
-  
-  return res;
+
+    next_free_page = *((void **) next_free_page);
+
+    assert(res != NULL);
+
+    return res;
 }
 
-void
-freePage(void* ptr)
-{
-  assert(ptr != NULL);
-  
-  *((void**)ptr) = next_free_page;
-  next_free_page = ptr;
-  
-  if (kma_page_stats.num_in_use == 0)
-    {
-      free(pool);
-      pool = NULL;
-      next_free_page = NULL;
+void freePage(void *ptr) {
+    assert(ptr != NULL);
+
+    *((void **) ptr) = next_free_page;
+    next_free_page = ptr;
+
+    if (kma_page_stats.num_in_use == 0) {
+        free(pool);
+        pool = NULL;
+        next_free_page = NULL;
     }
 }
 
-void
-initPages()
-{
-  int i;
-  
-  assert(next_free_page == NULL);
-  assert(pool == NULL);
-  
-  //pool = calloc(MAXPAGES, PAGESIZE);
-  int result = posix_memalign(&pool, PAGESIZE, MAXPAGES * PAGESIZE);
-  if(result)
-    error("Error using posix_memalign to allocate memory", "");
-  next_free_page = pool;
-  
-  // use ptr to point to the next free page struct
-  for (i = 0; i < (MAXPAGES - 1); i++)
-    {
-      void* ptr = (pool + i * PAGESIZE);
-      void* next = ptr + PAGESIZE;
-      
-      *((void**) ptr) = next;
+void initPages() {
+    int i;
+
+    assert(next_free_page == NULL);
+    assert(pool == NULL);
+
+    //pool = calloc(MAXPAGES, PAGESIZE);
+    int result = posix_memalign(&pool, PAGESIZE, MAXPAGES * PAGESIZE);
+    if (result)
+        error("Error using posix_memalign to allocate memory", "");
+    next_free_page = pool;
+
+    // use ptr to point to the next free page struct
+    for (i = 0; i < (MAXPAGES - 1); i++) {
+        void *ptr = (pool + i * PAGESIZE);
+        void *next = ptr + PAGESIZE;
+
+        *((void **) ptr) = next;
     }
-  
-  *((void**)(pool + (MAXPAGES - 1) * PAGESIZE)) = NULL;
+
+    *((void **) (pool + (MAXPAGES - 1) * PAGESIZE)) = NULL;
 }

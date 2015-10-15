@@ -68,13 +68,11 @@
 
 /**************Implementation***********************************************/
 
-void* kma_malloc(kma_size_t size)
-{
+void* kma_malloc(kma_size_t size) {
   return NULL;
 }
 
-void kma_free(void* ptr, kma_size_t size)
-{
+void kma_free(void* ptr, kma_size_t size) {
   ;
 }
 

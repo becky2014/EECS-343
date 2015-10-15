@@ -87,7 +87,7 @@ typedef int kma_size_t;
  *    Output: the allocated memory of the specified size
  *            or NULL on failure
  ***********************************************************************/
-EXTERN void* kma_malloc(kma_size_t size);
+EXTERN void *kma_malloc(kma_size_t size);
 
 /***********************************************************************
  *  Title: Frees kernel memory spaced
@@ -98,12 +98,12 @@ EXTERN void* kma_malloc(kma_size_t size);
  *           space
  *    Output: none
  ***********************************************************************/
-EXTERN void kma_free(void*, kma_size_t size);
+EXTERN void kma_free(void *, kma_size_t size);
 
 /************External Declaration*****************************************/
 
 /**************Definition***************************************************/
 
-void error(char* message, char* arg );
+void error(char *message, char *arg);
 
 #endif /* __KMA_H__ */

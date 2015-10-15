@@ -72,18 +72,16 @@
  *  structures and arrays, line everything up in neat columns.
  */
 
-enum REQ_STATE
-  {
+enum REQ_STATE {
     FREE,
     USED
-  };
+};
 
-typedef struct mem
-{
-  int size;
-  void* ptr;
-  void* value; // to check correctness
-  enum REQ_STATE state;
+typedef struct mem {
+    int size;
+    void *ptr;
+    void *value; // to check correctness
+    enum REQ_STATE state;
 } mem_t;
 
 /************Global Variables*********************************************/
@@ -92,12 +90,19 @@ static int val = 0;
 
 /************Function Prototypes******************************************/
 void allocate();
+
 void deallocate();
-void fill(char*, int);
-void check(char*, char*, int);
+
+void fill(char *, int);
+
+void check(char *, char *, int);
+
 void usage();
-void error(char*, char*);
+
+void error(char *, char *);
+
 void pass();
+
 void fail();
 
 /************External Declaration*****************************************/
@@ -113,257 +118,226 @@ int currentAllocBytes = 0;
 char *name = NULL;
 
 int
-main(int argc, char* argv[])
-{
-  
-  name = argv[0];
-  
-#ifdef COMPETITION
-  printf("%s: Running in competition mode\n", name);
-#endif
+main(int argc, char *argv[]) {
 
-#ifndef COMPETITION
-  printf("%s: Running in correctness mode\n", name);
-#endif
-
-  int n_req = 0, n_alloc=0, n_dealloc=0;
-  kma_page_stat_t* stat;
+    name = argv[0];
 
 #ifdef COMPETITION
-  double ratioSum = 0.0;
-  int ratioCount = 0;
+    printf("%s: Running in competition mode\n", name);
 #endif
-  
+
 #ifndef COMPETITION
-  FILE* allocTrace = fopen("kma_output.dat", "w");
-  if (allocTrace == NULL)
-    {
-      error("unable to open allocation output file", "kma_output.dat");
-    }
-  fprintf(allocTrace, "0 0 0\n");
+    printf("%s: Running in correctness mode\n", name);
 #endif
 
-  if (argc != 2)
-    {
-      usage();
-    }
-  
-  FILE* f_test = fopen(argv[1], "r");
-  if (f_test == NULL)
-    {
-      error("unable to open input test file", argv[1]);
-    }
-  
-  // Get the number of requests in the trace file
-  // Allocate some memory...
-  int status = fscanf(f_test, "%d\n", &n_req);
-  if(status != 1)
-    error("Couldn't read number of requests at head of file", "");
-  
-  mem_t* requests = malloc((n_req + 1)*sizeof(mem_t));
-  memset(requests, 0, (n_req + 1)*sizeof(mem_t));
-  
-  char command[16];
-  int req_id, req_size, index = 1;
+    int n_req = 0, n_alloc = 0, n_dealloc = 0;
+    kma_page_stat_t *stat;
 
-  // Parse the lines in the file, and call allocate or
-  // deallocate accordingly.
-  while (fscanf(f_test, "%10s", command) == 1)
-    {
-      if (strcmp(command, "REQUEST") == 0)
-	{
-	  
-	  if (fscanf(f_test, "%d %d", &req_id, &req_size) != 2)
-	    error("Not enough arguments to REQUEST", "");
-
-	  assert(req_id >= 0 && req_id < n_req);
-	  
-	  allocate(requests, req_id, req_size);
-	  n_alloc++;
-	}
-      else if (strcmp(command, "FREE") == 0)
-	{
-	  if (fscanf(f_test, "%d", &req_id) != 1)
-	    error("Not enough arguments to FREE", "");
-	  
-	  assert(req_id >= 0 && req_id < n_req);
-	  
-	  deallocate(requests, req_id);
-	  n_dealloc++;
-	}
-      else
-	{
-	  error("unknown command type:", command);
-	}
-
-      stat = page_stats();
-      int totalBytes = stat->num_in_use * stat->page_size;
-
-      
 #ifdef COMPETITION
-      if(req_id < n_req && n_alloc != n_dealloc)
-	{
-	  // We can calculate the ratio of wasted to used memory here.
-
-	  int wastedBytes = totalBytes - currentAllocBytes;
-	  ratioSum += ((double) wastedBytes) / currentAllocBytes;
-	  ratioCount += 1;
-	}
+    double ratioSum = 0.0;
+    int ratioCount = 0;
 #endif
 
 #ifndef COMPETITION
-      fprintf(allocTrace, "%d %d %d\n", index, currentAllocBytes, totalBytes);
+    FILE *allocTrace = fopen("kma_output.dat", "w");
+    if (allocTrace == NULL) {
+        error("unable to open allocation output file", "kma_output.dat");
+    }
+    fprintf(allocTrace, "0 0 0\n");
 #endif
-      
-      index += 1;
+
+    if (argc != 2) {
+        usage();
+    }
+
+    FILE *f_test = fopen(argv[1], "r");
+    if (f_test == NULL) {
+        error("unable to open input test file", argv[1]);
+    }
+
+    // Get the number of requests in the trace file
+    // Allocate some memory...
+    int status = fscanf(f_test, "%d\n", &n_req);
+    if (status != 1)
+        error("Couldn't read number of requests at head of file", "");
+
+    mem_t *requests = malloc((n_req + 1) * sizeof(mem_t));
+    memset(requests, 0, (n_req + 1) * sizeof(mem_t));
+
+    char command[16];
+    int req_id, req_size, index = 1;
+
+    // Parse the lines in the file, and call allocate or
+    // deallocate accordingly.
+    while (fscanf(f_test, "%10s", command) == 1) {
+        if (strcmp(command, "REQUEST") == 0) {
+
+            if (fscanf(f_test, "%d %d", &req_id, &req_size) != 2)
+                error("Not enough arguments to REQUEST", "");
+
+            assert(req_id >= 0 && req_id < n_req);
+
+            allocate(requests, req_id, req_size);
+            n_alloc++;
+        }
+        else if (strcmp(command, "FREE") == 0) {
+            if (fscanf(f_test, "%d", &req_id) != 1)
+                error("Not enough arguments to FREE", "");
+
+            assert(req_id >= 0 && req_id < n_req);
+
+            deallocate(requests, req_id);
+            n_dealloc++;
+        }
+        else {
+            error("unknown command type:", command);
+        }
+
+        stat = page_stats();
+        int totalBytes = stat->num_in_use * stat->page_size;
+
+
+#ifdef COMPETITION
+        if(req_id < n_req && n_alloc != n_dealloc) {
+            // We can calculate the ratio of wasted to used memory here.
+
+            int wastedBytes = totalBytes - currentAllocBytes;
+            ratioSum += ((double) wastedBytes) / currentAllocBytes;
+            ratioCount += 1;
+        }
+#endif
+
+#ifndef COMPETITION
+        fprintf(allocTrace, "%d %d %d\n", index, currentAllocBytes, totalBytes);
+#endif
+
+        index += 1;
     }
 
 #ifndef COMPETITION
-  fclose(allocTrace);
+    fclose(allocTrace);
 #endif
-  
-  
-  stat = page_stats();
-  
-  printf("Page Requested/Freed/In Use: %5d/%5d/%5d\n",
-	 stat->num_requested, stat->num_freed, stat->num_in_use);	
-  
-  if (stat->num_requested != stat->num_freed || stat->num_in_use != 0)
-    {
-      error("not all pages freed", "");
+
+
+    stat = page_stats();
+
+    printf("Page Requested/Freed/In Use: %5d/%5d/%5d\n",
+           stat->num_requested, stat->num_freed, stat->num_in_use);
+
+    if (stat->num_requested != stat->num_freed || stat->num_in_use != 0) {
+        error("not all pages freed", "");
     }
-  
-  if(anyMismatches)
-    {
-      error("there were memory mismatches", "");
+
+    if (anyMismatches) {
+        error("there were memory mismatches", "");
     }
 
 #ifdef COMPETITION
-  printf("Competition average ratio: %f\n", ratioSum / ratioCount);
+    printf("Competition average ratio: %f\n", ratioSum / ratioCount);
 #endif
-  
-  pass();
-  return 0;
+
+    pass();
+    return 0;
 }
 
-void
-fail()
-{
-  printf("Test: FAILED\n");
-  exit(-1);
+void fail() {
+    printf("Test: FAILED\n");
+    exit(-1);
 }
 
-void
-pass()
-{
-  printf("Test: PASS\n");
-  exit(0);
+void pass() {
+    printf("Test: PASS\n");
+    exit(0);
 }
 
-void
-usage() {
-  printf("Usage: %s traceFile\n", name);
-  exit(0);
+void usage() {
+    printf("Usage: %s traceFile\n", name);
+    exit(0);
 }
 
-void
-error(char* message, char* arg ) {
-  fprintf(stderr, "ERROR: %s: %s.\n", message, arg);
-  fail();
+void error(char *message, char *arg) {
+    fprintf(stderr, "ERROR: %s: %s.\n", message, arg);
+    fail();
 }
 
-void
-allocate(mem_t* requests, int req_id, int req_size)
-{
-  mem_t* new = &requests[req_id];
-  
-  assert(new->state == FREE);
-  
-  new->size = req_size;
-  new->ptr = kma_malloc(new->size);
-  
-  // Accept a NULL response in some cases... 
-  if(!(((new->ptr != NULL) && (new->size <= (PAGESIZE - sizeof(void*))))
-       || ((new->ptr == NULL) && (new->size > (PAGESIZE - sizeof(void*))))))
-    {
-      error("got NULL from kma_malloc for alloc'able request", "");
-    }
-  
-  if (new->ptr == NULL)
-    {
-      return;
+void allocate(mem_t *requests, int req_id, int req_size) {
+    mem_t *newPtr = &requests[req_id];
+
+    assert(newPtr->state == FREE);
+
+    newPtr->size = req_size;
+    newPtr->ptr = kma_malloc(newPtr->size);
+
+    // Accept a NULL response in some cases...
+    if (!(((newPtr->ptr != NULL) && (newPtr->size <= (PAGESIZE - sizeof(void *))))
+          || ((newPtr->ptr == NULL) && (newPtr->size > (PAGESIZE - sizeof(void *)))))) {
+        error("got NULL from kma_malloc for alloc'able request", "");
     }
 
-  currentAllocBytes += req_size;
-  
+    if (newPtr->ptr == NULL) {
+        return;
+    }
+
+    currentAllocBytes += req_size;
+
 #ifndef COMPETITION
-  // Only run the actual memory accesses/copies/checks if we're
-  // testing for correctness.
-  
-  new->value = malloc(new->size);
-  assert(new->value != NULL);
-  
-  // initialize memory
-  fill((char*)new->ptr, new->size);
-  
-  // copy the value for further reference
-  bcopy(new->ptr, new->value, new->size);
-  
-  check((char*)new->ptr, (char*)new->value, new->size);
-  
+    // Only run the actual memory accesses/copies/checks if we're
+    // testing for correctness.
+
+    newPtr->value = malloc(newPtr->size);
+    assert(newPtr->value != NULL);
+
+    // initialize memory
+    fill((char *) newPtr->ptr, newPtr->size);
+
+    // copy the value for further reference
+    bcopy(newPtr->ptr, newPtr->value, newPtr->size);
+
+    check((char *) newPtr->ptr, (char *) newPtr->value, newPtr->size);
+
 #endif
 
-  new->state = USED;
+    newPtr->state = USED;
 }
 
-void
-deallocate(mem_t* requests, int req_id)
-{
-  mem_t* cur = &requests[req_id];
-  
-  assert(cur->state == USED);
-  assert(cur->size > 0);
-  
+void deallocate(mem_t *requests, int req_id) {
+    mem_t *cur = &requests[req_id];
+
+    assert(cur->state == USED);
+    assert(cur->size > 0);
+
 #ifndef COMPETITION
-  // Only run the memory checks if we're testing for correctness.
+    // Only run the memory checks if we're testing for correctness.
 
-  // check memory
-  check((char*)cur->ptr, (char*)cur->value, cur->size);
+    // check memory
+    check((char *) cur->ptr, (char *) cur->value, cur->size);
 
-  // free memory
-  free(cur->value);
+    // free memory
+    free(cur->value);
 #endif
 
-  kma_free(cur->ptr, cur->size);
+    kma_free(cur->ptr, cur->size);
 
-  currentAllocBytes -= cur->size;
-  
-  cur->state = FREE;
+    currentAllocBytes -= cur->size;
+
+    cur->state = FREE;
 }
 
-void
-fill(char* ptr, int size)
-{
-  int i;
-  
-  for (i = 0; i < size; i++)
-    {
-      ptr[i] = (char) val++;
+void fill(char *ptr, int size) {
+    int i;
+
+    for (i = 0; i < size; i++) {
+        ptr[i] = (char) val++;
     }
 }
 
-void
-check(char* lhs, char* rhs, int size)
-{
-  int i;
-  
-  for (i = 0; i < size; i++)
-    {
-      if (lhs[i] != rhs[i])
-	{
-	  fprintf(stderr, "memory mismatch at position %d (%3d!=%3d)\n", 
-		  i, lhs[i], rhs[i]);
-	  anyMismatches = 1;
-	}
+void check(char *lhs, char *rhs, int size) {
+    int i;
+
+    for (i = 0; i < size; i++) {
+        if (lhs[i] != rhs[i]) {
+            fprintf(stderr, "memory mismatch at position %d (%3d!=%3d)\n", i, lhs[i], rhs[i]);
+            anyMismatches = 1;
+        }
     }
 }
