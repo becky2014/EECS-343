@@ -84,8 +84,7 @@ void initPages();
 
 /**************Implementation***********************************************/
 
-kma_page_t *
-get_page() {
+kma_page_t *get_page() {
     static int id = 0;
     kma_page_t *res;
 
@@ -161,8 +160,9 @@ void initPages() {
 
     //pool = calloc(MAXPAGES, PAGESIZE);
     int result = posix_memalign(&pool, PAGESIZE, MAXPAGES * PAGESIZE);
-    if (result)
+    if (result) {
         error("Error using posix_memalign to allocate memory", "");
+    }
     next_free_page = pool;
 
     // use ptr to point to the next free page struct

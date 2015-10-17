@@ -117,8 +117,7 @@ int currentAllocBytes = 0;
 
 char *name = NULL;
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 
     name = argv[0];
 
@@ -158,8 +157,9 @@ main(int argc, char *argv[]) {
     // Get the number of requests in the trace file
     // Allocate some memory...
     int status = fscanf(f_test, "%d\n", &n_req);
-    if (status != 1)
+    if (status != 1) {
         error("Couldn't read number of requests at head of file", "");
+    }
 
     mem_t *requests = malloc((n_req + 1) * sizeof(mem_t));
     memset(requests, 0, (n_req + 1) * sizeof(mem_t));
@@ -172,24 +172,24 @@ main(int argc, char *argv[]) {
     while (fscanf(f_test, "%10s", command) == 1) {
         if (strcmp(command, "REQUEST") == 0) {
 
-            if (fscanf(f_test, "%d %d", &req_id, &req_size) != 2)
+            if (fscanf(f_test, "%d %d", &req_id, &req_size) != 2) {
                 error("Not enough arguments to REQUEST", "");
+            }
 
             assert(req_id >= 0 && req_id < n_req);
 
             allocate(requests, req_id, req_size);
             n_alloc++;
-        }
-        else if (strcmp(command, "FREE") == 0) {
-            if (fscanf(f_test, "%d", &req_id) != 1)
+        } else if (strcmp(command, "FREE") == 0) {
+            if (fscanf(f_test, "%d", &req_id) != 1) {
                 error("Not enough arguments to FREE", "");
+            }
 
             assert(req_id >= 0 && req_id < n_req);
 
             deallocate(requests, req_id);
             n_dealloc++;
-        }
-        else {
+        } else {
             error("unknown command type:", command);
         }
 
@@ -221,8 +221,7 @@ main(int argc, char *argv[]) {
 
     stat = page_stats();
 
-    printf("Page Requested/Freed/In Use: %5d/%5d/%5d\n",
-           stat->num_requested, stat->num_freed, stat->num_in_use);
+    printf("Page Requested/Freed/In Use: %5d/%5d/%5d\n", stat->num_requested, stat->num_freed, stat->num_in_use);
 
     if (stat->num_requested != stat->num_freed || stat->num_in_use != 0) {
         error("not all pages freed", "");
