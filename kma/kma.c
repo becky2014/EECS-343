@@ -161,8 +161,8 @@ int main(int argc, char *argv[]) {
         error("Couldn't read number of requests at head of file", "");
     }
 
-    mem_t *requests = malloc((n_req + 1) * sizeof(mem_t));
-    memset(requests, 0, (n_req + 1) * sizeof(mem_t));
+    mem_t *requests = malloc((n_req / 2) * sizeof(mem_t));
+    memset(requests, 0, (n_req / 2) * sizeof(mem_t));
 
     char command[16];
     int req_id, req_size, index = 1;

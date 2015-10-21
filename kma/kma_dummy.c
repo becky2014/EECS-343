@@ -75,8 +75,7 @@ void* kma_malloc(kma_size_t size) {
     // add a pointer to the page structure at the beginning of the page
     *((kma_page_t**)page->ptr) = page;
   
-    if ((size + sizeof(kma_page_t*)) > page->size)
-    { // requested size too large
+    if ((size + sizeof(kma_page_t*)) > page->size) { // requested size too large
       free_page(page);
       return NULL;
     }
