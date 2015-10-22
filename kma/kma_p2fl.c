@@ -68,12 +68,81 @@
 
 /**************Implementation***********************************************/
 
+/*
+ * statistics in 5.trace
+ * 4:		0
+ * 8:		1698
+ * 16:		9286
+ * 32:		9412
+ * 64: 		9681
+ * 128: 	9958
+ * 256: 	10045
+ * 512: 	10109
+ * 1024:	10228
+ * 2048: 	10012
+ * 4096: 	10127
+ * 8192:	9444
+ * 16384:	0
+ */
+
+#define PTRSIZE 8
+#define MINPOWER 4
+#define FREELISTSIZE 10
+
+kma_size_t malloc_size = 0;
+kma_size_t req_pid = 0;
+kma_page_t *req_page[MAXPAGES] = {0};
+void *free_list[FREELISTSIZE] = {0};
+
+
 void* kma_malloc(kma_size_t size) {
-  return NULL;
+    malloc_size += size;
+    kma_size_t idx = 0;
+    kma_size_t bufsize = 1 << MINPOWER;
+    size += PTRSIZE;
+    while (bufsize < size) {
+          idx++;
+          bufsize <<= 1;
+    }
+    if (!free_list[idx]) {
+          req_page[req_pid++] = get_page();
+          for (int i = 0; i < FREELISTSIZE; i++) {
+              void *ptr = NULL;
+              if (i == FREELISTSIZE - 1) {
+                  req_page[req_pid++] = get_page();
+                  ptr = req_page[req_pid - 1]->ptr;
+              } else {
+                  ptr = req_page[req_pid - 1]->ptr + (1 << (MINPOWER + i));
+              }
+              *((void **)ptr) = free_list[i];
+              free_list[i] = ptr;
+          }
+    }
+    void *ptr = free_list[idx];
+    free_list[idx] = *((void **)free_list[idx]);
+    *((void **)ptr) = free_list + idx;
+    return ptr + PTRSIZE;
 }
 
 void kma_free(void* ptr, kma_size_t size) {
-  ;
+    malloc_size -= size;
+    if (malloc_size == 0) {
+          for (int i = 0; i < req_pid; i++) {
+              free_page(req_page[i]);
+          }
+          for (int i = 0; i < FREELISTSIZE; i++) {
+              free_list[i] = 0;
+          }
+          req_pid = 0;
+    } else {
+        kma_size_t idx = 0;
+        ptr -= PTRSIZE;
+        while (*((void **)ptr) != free_list + idx) {
+            idx++;
+        }
+        *((void **)ptr) = free_list[idx];
+        free_list[idx] = ptr;
+    }
 }
 
 #endif // KMA_P2FL
