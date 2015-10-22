@@ -46,7 +46,6 @@
 #define __KMA_IMPL__
 
 /************System include***********************************************/
-#include <assert.h>
 #include <stdlib.h>
 
 /************Private include**********************************************/
@@ -67,6 +66,35 @@
 /************External Declaration*****************************************/
 
 /**************Implementation***********************************************/
+
+
+#define IDX(size)	\
+    (size) > 512	\
+        ? (size) > 1024	\
+            ? (size) > 2048	\
+                ? (size) > 4096 ? 9 : 8	\
+                : 7	\
+            : 6	\
+        : (size) > 256	\
+            ? 5	\
+            : (size) > 128	\
+                ? 4	\
+                : (size) > 64	\
+                    ? 3	\
+                    : (size) > 32	\
+                        ? 2	\
+                        : (size) > 16 ? 1 : 0
+/*
+#define MALLOC(space, cast, size, flags) {
+    register struct freelisthdr* flh;
+    if (size <= 512 && (flh = freelistarr[IDX(size)])) {
+        space = (cast)flh->next;
+        flh->next = *(caddr_t *)space;
+    } else {
+        space = (cast)malloc(size, flags);
+    }
+}
+*/
 
 void* kma_malloc(kma_size_t size) {
   return NULL;

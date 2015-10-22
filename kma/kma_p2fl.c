@@ -46,7 +46,6 @@
 #define __KMA_IMPL__
 
 /************System include***********************************************/
-#include <assert.h>
 #include <stdlib.h>
 
 /************Private include**********************************************/
@@ -85,7 +84,7 @@
  * 16384:	0
  */
 
-#define PTRSIZE 8
+#define PTRSIZE sizeof(void *)
 #define MINPOWER 4
 #define FREELISTSIZE 10
 
