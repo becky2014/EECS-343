@@ -88,34 +88,34 @@
 #define MINPOWER 4
 #define FREELISTSIZE 10
 
-kma_size_t malloc_size = 0;
-kma_size_t req_pid = 0;
-kma_page_t *req_page[MAXPAGES] = {0};
+typedef struct page_wrapper_t {
+    kma_page_t *page;
+    struct page_wrapper_t *next;
+} page_wrapper_t;
+
+page_wrapper_t *page_head = NULL;
 void *free_list[FREELISTSIZE] = {0};
 
 
 void* kma_malloc(kma_size_t size) {
-    malloc_size += size;
     kma_size_t idx = 0;
     kma_size_t bufsize = 1 << MINPOWER;
     size += PTRSIZE;
     while (bufsize < size) {
-          idx++;
-          bufsize <<= 1;
+        idx++;
+        bufsize <<= 1;
     }
     if (!free_list[idx]) {
-          req_page[req_pid++] = get_page();
-          for (int i = 0; i < FREELISTSIZE; i++) {
-              void *ptr = NULL;
-              if (i == FREELISTSIZE - 1) {
-                  req_page[req_pid++] = get_page();
-                  ptr = req_page[req_pid - 1]->ptr;
-              } else {
-                  ptr = req_page[req_pid - 1]->ptr + (1 << (MINPOWER + i));
-              }
-              *((void **)ptr) = free_list[i];
-              free_list[i] = ptr;
-          }
+        kma_page_t *page = get_page();
+        page_wrapper_t *page_wrapper = (page_wrapper_t *)malloc(sizeof(page_wrapper_t));
+        page_wrapper->page = page;
+        page_wrapper->next = page_head;
+        page_head = page_wrapper;
+        for (void *ptr = page->ptr; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
+            *((void **)ptr) = ptr + bufsize;
+        }
+        *((void **)(page->ptr + page->size - bufsize)) = free_list[idx];
+        free_list[idx] = page->ptr;
     }
     void *ptr = free_list[idx];
     free_list[idx] = *((void **)free_list[idx]);
@@ -124,23 +124,45 @@ void* kma_malloc(kma_size_t size) {
 }
 
 void kma_free(void* ptr, kma_size_t size) {
-    malloc_size -= size;
-    if (malloc_size == 0) {
-          for (int i = 0; i < req_pid; i++) {
-              free_page(req_page[i]);
-          }
-          for (int i = 0; i < FREELISTSIZE; i++) {
-              free_list[i] = 0;
-          }
-          req_pid = 0;
-    } else {
-        kma_size_t idx = 0;
-        ptr -= PTRSIZE;
-        while (*((void **)ptr) != free_list + idx) {
-            idx++;
+    ptr -= PTRSIZE;
+    kma_size_t idx = 0;
+    while (*((void **)ptr) != free_list + idx) {
+        idx++;
+    }
+    *((void **)ptr) = free_list[idx];
+    free_list[idx] = ptr;
+    page_wrapper_t *page_cur = page_head;
+    page_wrapper_t *page_pre = NULL;
+    while (page_cur) {
+        kma_page_t *page = page_cur->page;
+        if (page->ptr <= ptr && ptr < page->ptr + page->size) {
+            kma_size_t bufsize = 1 << (idx + MINPOWER);
+            for (void *tmp = page->ptr; tmp < page->ptr + page->size; tmp += bufsize) {
+                if (*((void **)tmp) == free_list + idx) {
+                    return;
+                }
+            }
+            void *block = free_list[idx];
+            free_list[idx] = NULL;
+            while (block) {
+                void *tmp = block;
+                block = *((void **)block);
+                if (tmp < page->ptr || tmp > page->ptr + page->size) {
+                    *((void **)tmp) = free_list[idx];
+                    free_list[idx] = tmp;
+                }
+            }
+            if (!page_pre) {
+                page_head = page_cur->next;
+            } else {
+                page_pre->next = page_cur->next;
+            }
+            free_page(page_cur->page);
+            free(page_cur);
+            return;
         }
-        *((void **)ptr) = free_list[idx];
-        free_list[idx] = ptr;
+        page_pre = page_cur;
+        page_cur = page_cur->next;
     }
 }
 
