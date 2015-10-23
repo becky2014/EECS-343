@@ -93,11 +93,21 @@ typedef struct page_wrapper_t {
     struct page_wrapper_t *next;
 } page_wrapper_t;
 
+page_wrapper_t page_stat[MAXPAGES];
 page_wrapper_t *page_head = NULL;
+page_wrapper_t *free_head = NULL;
 void *free_list[FREELISTSIZE] = {0};
 
 
 void* kma_malloc(kma_size_t size) {
+    if (!page_head && !free_head) {
+        free_head = page_stat;
+        (page_stat[MAXPAGES - 1]).next = NULL;
+        int i;
+        for (i = 0; i < MAXPAGES - 1; i++) {
+            (page_stat[i]).next = page_stat + i + 1;
+        }
+    }
     kma_size_t idx = 0;
     kma_size_t bufsize = 1 << MINPOWER;
     size += PTRSIZE;
@@ -107,10 +117,11 @@ void* kma_malloc(kma_size_t size) {
     }
     if (!free_list[idx]) {
         kma_page_t *page = get_page();
-        page_wrapper_t *page_wrapper = (page_wrapper_t *)malloc(sizeof(page_wrapper_t));
-        page_wrapper->page = page;
-        page_wrapper->next = page_head;
-        page_head = page_wrapper;
+        page_wrapper_t *tmp = free_head;
+        free_head = free_head->next;
+        tmp->page = page;
+        tmp->next = page_head;
+        page_head = tmp;
         void *ptr;
         for (ptr = page->ptr; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
             *((void **)ptr) = ptr + bufsize;
@@ -160,7 +171,8 @@ void kma_free(void* ptr, kma_size_t size) {
                 page_pre->next = page_cur->next;
             }
             free_page(page_cur->page);
-            free(page_cur);
+            page_cur->next = free_head;
+            free_head = page_cur;
             return;
         }
         page_pre = page_cur;
