@@ -111,16 +111,17 @@ void* kma_malloc(kma_size_t size) {
         page_wrapper->page = page;
         page_wrapper->next = page_head;
         page_head = page_wrapper;
-        for (void *ptr = page->ptr; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
+        void *ptr;
+        for (ptr = page->ptr; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
             *((void **)ptr) = ptr + bufsize;
         }
         *((void **)(page->ptr + page->size - bufsize)) = free_list[idx];
         free_list[idx] = page->ptr;
     }
-    void *ptr = free_list[idx];
+    void *space = free_list[idx];
     free_list[idx] = *((void **)free_list[idx]);
-    *((void **)ptr) = free_list + idx;
-    return ptr + PTRSIZE;
+    *((void **)space) = free_list + idx;
+    return space + PTRSIZE;
 }
 
 void kma_free(void* ptr, kma_size_t size) {
@@ -137,7 +138,8 @@ void kma_free(void* ptr, kma_size_t size) {
         kma_page_t *page = page_cur->page;
         if (page->ptr <= ptr && ptr < page->ptr + page->size) {
             kma_size_t bufsize = 1 << (idx + MINPOWER);
-            for (void *tmp = page->ptr; tmp < page->ptr + page->size; tmp += bufsize) {
+            void *tmp;
+            for (tmp = page->ptr; tmp < page->ptr + page->size; tmp += bufsize) {
                 if (*((void **)tmp) == free_list + idx) {
                     return;
                 }

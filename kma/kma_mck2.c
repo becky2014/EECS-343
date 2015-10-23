@@ -125,7 +125,8 @@ void inc_used(void* ptr) {
 
 void* kma_malloc(kma_size_t size) {
     if (!free_head && !page_head) {
-        for (int i = 0; i < MAXPAGES - 1; i++) {
+        int i;
+        for (i = 0; i < MAXPAGES - 1; i++) {
             (page_stat[i]).next = page_stat + i + 1;
         }
         (page_stat[MAXPAGES - 1]).next = NULL;
@@ -158,7 +159,8 @@ void* kma_malloc(kma_size_t size) {
             tmp->block_size = bufsize;
             tmp->next = page_head;
             page_head = tmp;
-            for (void *ptr = page->ptr + bufsize; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
+            void *ptr;
+            for (ptr = page->ptr + bufsize; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
                 *((void **)ptr) = ptr + bufsize;
             }
             *((void **)(page->ptr + page->size - bufsize)) = freelist[idx];
