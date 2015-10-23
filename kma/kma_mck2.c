@@ -46,6 +46,8 @@
 #define __KMA_IMPL__
 
 /************System include***********************************************/
+#include <stdio.h>
+#include <assert.h>
 #include <stdlib.h>
 
 /************Private include**********************************************/
@@ -67,41 +69,144 @@
 
 /**************Implementation***********************************************/
 
+#define MINPOWER 4
+#define FREELISTSIZE 9
+#if __x86_64__ || __ppc64__
+#define MASK 0xFFFFFFFFFFFFE000
+#else
+#define MASK 0xFFFFE000
+#endif
 
-#define IDX(size)	\
-    (size) > 512	\
-        ? (size) > 1024	\
-            ? (size) > 2048	\
-                ? (size) > 4096 ? 9 : 8	\
-                : 7	\
-            : 6	\
-        : (size) > 256	\
-            ? 5	\
-            : (size) > 128	\
-                ? 4	\
-                : (size) > 64	\
-                    ? 3	\
-                    : (size) > 32	\
-                        ? 2	\
-                        : (size) > 16 ? 1 : 0
-/*
-#define MALLOC(space, cast, size, flags) {
-    register struct freelisthdr* flh;
-    if (size <= 512 && (flh = freelistarr[IDX(size)])) {
-        space = (cast)flh->next;
-        flh->next = *(caddr_t *)space;
-    } else {
-        space = (cast)malloc(size, flags);
+
+typedef struct page_t {
+    kma_page_t *page;
+    kma_size_t block_size;
+    kma_size_t used_count;
+    struct page_t *next;
+} page_t;
+
+page_t page_stat[MAXPAGES];
+page_t *page_head = NULL;
+page_t *free_head = NULL;
+void *freelist[FREELISTSIZE] = {0};
+
+
+
+kma_size_t IDX(size) {
+    // not process size larger than 4096
+    return
+        size > 256
+            ? size > 512
+                ? size > 1024
+                    ? size > 2048 ? 8 : 7
+                    : 6
+                : 5
+            : size > 128
+                ? 4
+                : size > 64
+                    ? 3
+                    : size > 32
+                        ? 2
+                        : size > 16 ? 1 : 0;
+}
+
+
+void inc_used(void* ptr) {
+    page_t *looper = page_head;
+    while (looper) {
+        if ((void *)((unsigned long)ptr & MASK) == looper->page->ptr) {
+            looper->used_count++;
+            return;
+        }
+        looper = looper->next;
     }
 }
-*/
+
 
 void* kma_malloc(kma_size_t size) {
-  return NULL;
+    if (!free_head && !page_head) {
+        for (int i = 0; i < MAXPAGES - 1; i++) {
+            (page_stat[i]).next = page_stat + i + 1;
+        }
+        (page_stat[MAXPAGES - 1]).next = NULL;
+        free_head = page_stat;
+    }
+    void *space = NULL;
+    if (size > PAGESIZE / 2) {
+        kma_page_t *page = get_page();
+        page_t *tmp = free_head;
+        free_head = free_head->next;
+        tmp->page = page;
+        tmp->used_count = 1;
+        tmp->block_size = page->size;
+        tmp->next = page_head;
+        page_head = tmp;
+        space = page->ptr;
+    } else {
+        kma_size_t idx = IDX(size);
+        kma_size_t bufsize = 1 << (MINPOWER + idx);
+        if (freelist[idx]) {
+            space = freelist[idx];
+            inc_used(freelist[idx]);
+            freelist[idx] = *((void **)freelist[idx]);
+        } else {
+            kma_page_t *page = get_page();
+            page_t *tmp = free_head;
+            free_head = free_head->next;
+            tmp->page = page;
+            tmp->used_count = 1;
+            tmp->block_size = bufsize;
+            tmp->next = page_head;
+            page_head = tmp;
+            for (void *ptr = page->ptr + bufsize; ptr < page->ptr + page->size - bufsize; ptr += bufsize) {
+                *((void **)ptr) = ptr + bufsize;
+            }
+            *((void **)(page->ptr + page->size - bufsize)) = freelist[idx];
+            freelist[idx] = page->ptr + bufsize;
+            space = page->ptr;
+        }
+    }
+    return space;
 }
 
 void kma_free(void* ptr, kma_size_t size) {
-  ;
+    page_t *looper = page_head;
+    page_t *looper_pre = NULL;
+    while (looper) {
+        if ((void *)((unsigned long)ptr & MASK) == looper->page->ptr) {
+            looper->used_count--;
+            if (looper->used_count) {
+                kma_size_t idx = IDX(looper->block_size);
+                *((void **)ptr) = freelist[idx];
+                freelist[idx] = ptr;
+            } else {
+                if (looper->block_size < looper->page->size) {
+                    kma_size_t idx = IDX(looper->block_size);
+                    void *block_looper = freelist[idx];
+                    freelist[idx] = NULL;
+                    while (block_looper) {
+                        void *tmp = block_looper;
+                        block_looper = *((void **)block_looper);
+                        if ((void *)((unsigned long)tmp & MASK) != looper->page->ptr) {
+                            *((void **)tmp) = freelist[idx];
+                            freelist[idx] = tmp;
+                        }
+                    }
+                }
+                free_page(looper->page);
+                if (looper != page_head) {
+                    looper_pre->next = looper->next;
+                } else {
+                    page_head = looper->next;
+                }
+                looper->next = free_head;
+                free_head = looper;
+            }
+            return;
+        }
+        looper_pre = looper;
+        looper = looper->next;
+    }
 }
 
 #endif // KMA_MCK2
