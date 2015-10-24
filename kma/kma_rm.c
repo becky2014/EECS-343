@@ -66,233 +66,134 @@
 
 /**************Implementation***********************************************/
 
-typedef struct block_t {
-    void *base;
-    kma_size_t size;
-    bool occupied;
-    struct block_t *child;
-    struct block_t *parent;
-} block_t;
+#define PTRSIZE sizeof(void *)
+#define INTSIZE sizeof(kma_size_t)
+
 
 typedef struct page_wrapper_t {
-    block_t *block_head;
+    void *fb_head;
     kma_page_t *page;
-    struct page_wrapper_t *child;
-    struct page_wrapper_t *parent;
+    struct page_wrapper_t *next;
 } page_wrapper_t;
 
+page_wrapper_t page_stat[MAXPAGES];
 page_wrapper_t *page_head = NULL;
+page_wrapper_t *free_head = NULL;
 
 
 
 void *kma_malloc(kma_size_t size) {
+    if (!page_head && !free_head) {
+        free_head = page_stat;
+        (page_stat[MAXPAGES - 1]).next = NULL;
+        int i;
+        for (i = 0; i < MAXPAGES - 1; i++) {
+            (page_stat[i]).next = page_stat + i + 1;
+        }
+    }
     if (!page_head) {
-        page_head = (page_wrapper_t *)malloc(sizeof(page_wrapper_t));
-        page_head->block_head = (block_t *)malloc(sizeof(block_t));
-        page_head->page = get_page();
-        page_head->child = page_head;
-        page_head->parent = page_head;
-        block_t *block = page_head->block_head;
-        block->base = page_head->page->ptr;
-        block->size = page_head->page->size;
-        block->occupied = FALSE;
-        block->child = block;
-        block->parent = block;
+        page_head = free_head;
+        free_head = free_head->next;
+        kma_page_t *page = get_page();
+        *((void **)page->ptr) = NULL;
+        *((kma_size_t *)(page->ptr + PTRSIZE)) = page->size - PTRSIZE - INTSIZE;
+        page_head->page = page;
+        page_head->fb_head = page->ptr;
+        page_head->next = NULL;
     }
-    page_wrapper_t *page_looper = page_head;
-    do {
-        block_t *block_looper = page_looper->block_head;
-        do {
-            if (!block_looper->occupied && block_looper->size >= size) {
-                void *ptr = block_looper->base;
-                if (block_looper == page_looper->block_head) {
-                    block_looper->occupied = TRUE;
-                    if (block_looper->size > size) {
-                        block_t *block = (block_t *)malloc(sizeof(block_t));
-                        block->base = block_looper->base + size;
-                        block->size = block_looper->size - size;
-                        block->occupied = FALSE;
-                        block->child = block_looper->child;
-                        block->parent = block_looper;
-                        block_looper->size = size;
-                        block_looper->child->parent = block;
-                        block_looper->child = block;
-                    } else if (block_looper->child != block_looper) {
-                        block_t *block = block_looper->child;
-                        block_looper->size += block_looper->child->size;
-                        block_looper->child->child->parent = block_looper;
-                        block_looper->child = block_looper->child->child;
-                        free(block);
-                    }
+    page_wrapper_t *page_pre = NULL;
+    page_wrapper_t *page_cur = page_head;
+    while (page_cur) {
+        void *fb_pre = NULL;
+        void *fb_cur = page_cur->fb_head;
+        while (fb_cur) {
+            if (*((kma_size_t *)(fb_cur + PTRSIZE)) >= size) {
+                void *space = fb_cur;
+                fb_cur += size;
+                *((void **)fb_cur) = *((void **)space);
+                *((kma_size_t *)(fb_cur + PTRSIZE)) = *((kma_size_t *)(space + PTRSIZE)) - size;
+                if (fb_pre == NULL) {
+                    page_cur->fb_head = fb_cur;
                 } else {
-                    if (block_looper->size > size) {
-                        block_looper->base += size;
-                        block_looper->size -= size;
-                        block_looper->parent->size += size;
-                    } else {
-                        if (block_looper->child == page_looper->block_head) {
-                            block_looper->parent->size += block_looper->size;
-                            block_looper->parent->child = block_looper->child;
-                            block_looper->child->parent = block_looper->parent;
-                        } else {
-                            block_looper->parent->size += block_looper->size + block_looper->child->size;
-                            block_looper->parent->child = block_looper->child->child;
-                            block_looper->child->child->parent = block_looper->parent;
-                            free(block_looper->child);
-                        }
-                        free(block_looper);
-                    }
+                    *((void **)fb_pre) = fb_cur;
                 }
-                return ptr;
+                return space;
             }
-            block_looper = block_looper->child;
-        } while (block_looper != page_looper->block_head);
-        page_looper = page_looper->child;
-    } while (page_looper != page_head);
-    page_wrapper_t *page_wrapper = (page_wrapper_t *)malloc(sizeof(page_wrapper_t));
-    page_wrapper->block_head = (block_t *)malloc(sizeof(block_t));
-    page_wrapper->page = get_page();
-    page_wrapper->child = page_head;
-    page_wrapper->parent = page_head->parent;
-    page_head->parent->child = page_wrapper;
-    page_head->parent = page_wrapper;
-    block_t *occ = page_wrapper->block_head;
-    occ->base = page_wrapper->page->ptr;
-    occ->size = size;
-    occ->occupied = TRUE;
-    if (size < page_wrapper->page->size) {
-        block_t *fre = (block_t *)malloc(sizeof(block_t));
-        occ->child = fre;
-        occ->parent = fre;
-        fre->base = occ->base + size;
-        fre->size = page_wrapper->page->size - size;
-        fre->occupied = FALSE;
-        fre->child = occ;
-        fre->parent = occ;
-    } else {
-        occ->child = occ;
-        occ->parent = occ;
+            fb_pre = fb_cur;
+            fb_cur = *((void **)fb_cur);
+        }
+        page_pre = page_cur;
+        page_cur = page_cur->next;
     }
-    return occ->base;
+    page_cur = free_head;
+    free_head = free_head->next;
+    page_pre->next = page_cur;
+    kma_page_t *page = get_page();
+    page_cur->page = page;
+    page_cur->next = NULL;
+    *((void **)(page->ptr + size)) = NULL;
+    *((kma_size_t *)(page->ptr + size + PTRSIZE)) = page->size - size - PTRSIZE - INTSIZE;
+    page_cur->fb_head = page->ptr + size;
+    return page->ptr;
 }
 
 void kma_free(void* ptr, kma_size_t size) {
-    page_wrapper_t *page_looper = page_head;
-    do {
-        if (page_looper->page->ptr <= ptr && ptr + size <= page_looper->page->ptr + page_looper->page->size) {
-            block_t *block_looper = page_looper->block_head;
-            do {
-                if (block_looper->occupied && block_looper->base <= ptr && ptr + size <= block_looper->base + block_looper->size) {
-                    if (block_looper->size == size) {
-                        if (block_looper == page_looper->block_head) {
-                            block_looper->occupied = FALSE;
-                            if (block_looper->child != block_looper) {
-                                block_t *block = block_looper->child;
-                                block_looper->size += block_looper->child->size;
-                                block_looper->child->child->parent = block_looper;
-                                block_looper->child = block_looper->child->child;
-                                free(block);
-                            }
+    page_wrapper_t *page_pre = NULL;
+    page_wrapper_t *page_cur = page_head;
+    while (page_cur) {
+        if (page_cur->page->ptr <= ptr && ptr + size <= page_cur->page->ptr + page_cur->page->size) {
+            void *fb_pre = NULL;
+            void *fb_cur = page_cur->fb_head;
+            while (fb_cur) {
+                if (ptr < fb_cur) {
+                    if (!fb_pre) {
+                        if (ptr + size == fb_cur) {
+                            void *space = fb_cur;
+                            fb_cur = ptr;
+                            *((void **)fb_cur) = *((void **)space);
+                            *((kma_size_t *)(fb_cur + PTRSIZE)) = *((kma_size_t *)(space + PTRSIZE)) + size;
                         } else {
-                            if (block_looper->child == page_looper->block_head) {
-                                block_looper->parent->size += block_looper->size;
-                                block_looper->parent->child = block_looper->child;
-                                block_looper->child->parent = block_looper->parent;
-                            } else {
-                                block_looper->parent->size += block_looper->size + block_looper->child->size;
-                                block_looper->parent->child = block_looper->child->child;
-                                block_looper->child->child->parent = block_looper->parent;
-                                free(block_looper->child);
-                            }
-                            free(block_looper);
+                            *((void **)ptr) = fb_cur;
+                            *((kma_size_t *)(ptr + PTRSIZE)) = size - PTRSIZE - INTSIZE;
                         }
-                    } else if (block_looper->base == ptr) {
-                        if (block_looper == page_looper->block_head) {
-                            block_t *block = (block_t *)malloc(sizeof(block_t));
-                            block->occupied = TRUE;
-                            block->size = block_looper->size - size;
-                            block->base = block_looper->base + size;
-                            block->child = block_looper->child;
-                            block->parent = block_looper;
-                            block_looper->occupied = FALSE;
-                            block_looper->size = size;
-                            block_looper->child->parent = block;
-                            block_looper->child = block;
-                        } else {
-                            block_looper->base = ptr + size;
-                            block_looper->size -= size;
-                            block_looper->parent->size += size;
-                        }
-                    } else if (block_looper->base + block_looper->size == ptr + size) {
-                        block_looper->size -= size;
-                        if (block_looper == page_looper->block_head) {
-                            if (block_looper->child == block_looper) {
-                                block_t *block = (block_t *)malloc(sizeof(block_t));
-                                block->occupied = FALSE;
-                                block->size = size;
-                                block->base = ptr;
-                                block->child = block_looper;
-                                block->parent = block_looper;
-                                block_looper->child = block;
-                                block_looper->parent = block;
-                            } else {
-                                block_looper->child->base = ptr;
-                                block_looper->child->size += size;
-                            }
-                        } else {
-                            if (block_looper->child == page_looper->block_head) {
-                                block_t *block = (block_t *)malloc(sizeof(block_t));
-                                block->occupied = FALSE;
-                                block->size = size;
-                                block->base = ptr;
-                                block->child = block_looper->child;
-                                block->parent = block_looper;
-                                block_looper->child->parent = block;
-                                block_looper->child = block;
-                            } else {
-                                block_looper->child->base -= size;
-                                block_looper->child->size += size;
-                            }
-                        }
+                        page_cur->fb_head = ptr;
                     } else {
-                        block_t *fre = (block_t *)malloc(sizeof(block_t));
-                        fre->occupied = FALSE;
-                        fre->size = size;
-                        fre->base = ptr;
-                        block_t *occ = (block_t *)malloc(sizeof(block_t));
-                        occ->occupied = TRUE;
-                        occ->size = block_looper->size - (ptr - block_looper->base + size);
-                        occ->base = ptr + size;
-                        fre->parent = block_looper;
-                        fre->child = occ;
-                        occ->parent = fre;
-                        occ->child = block_looper->child;
-                        block_looper->size = ptr - block_looper->base;
-                        block_looper->child->parent = occ;
-                        block_looper->child = fre;
+                        if (fb_cur - fb_pre - *((kma_size_t *)(fb_pre + PTRSIZE)) - PTRSIZE - INTSIZE == size) {
+                            *((void **)fb_pre) = *((void **)fb_cur);
+                            *((kma_size_t *)(fb_pre + PTRSIZE)) += size + *((kma_size_t *)(fb_cur + PTRSIZE)) + PTRSIZE + INTSIZE;
+                        } else if (ptr + size == fb_cur) {
+                            void *space = fb_cur;
+                            fb_cur = ptr;
+                            *((void **)fb_cur) = *((void **)space);
+                            *((kma_size_t *)(fb_cur + PTRSIZE)) = *((kma_size_t *)(space + PTRSIZE)) + size;
+                            *((void **)fb_pre) = fb_cur;
+                        } else if (ptr == fb_pre + PTRSIZE + INTSIZE + *((kma_size_t *)(fb_pre + PTRSIZE))) {
+                            *((kma_size_t *)(fb_pre + PTRSIZE)) += size;
+                        } else {
+                            *((void **)ptr) = fb_cur;
+                            *((kma_size_t *)(ptr + PTRSIZE)) = size - PTRSIZE - INTSIZE;
+                            *((void **)fb_pre) = ptr;
+                        }
                     }
-                    if (page_looper->block_head->child == page_looper->block_head) {
-                        if (page_looper == page_head) {
-                            if (page_looper->child == page_looper) {
-                                page_head = NULL;
-                            } else {
-                                page_head = page_looper->child;
-                            }
+                    if (page_cur->fb_head == page_cur->page->ptr && *((kma_size_t *)(page_cur->fb_head + PTRSIZE)) + PTRSIZE + INTSIZE == page_cur->page->size) {
+                        if (!page_pre) {
+                            page_head = page_cur->next;
+                        } else {
+                            page_pre->next = page_cur->next;
                         }
-                        if (page_looper != page_head || page_looper->child != page_looper) {
-                            page_looper->parent->child = page_looper->child;
-                            page_looper->child->parent = page_looper->parent;
-                        }
-                        free_page(page_looper->page);
-                        free(page_looper);
+                        free_page(page_cur->page);
+                        page_cur->next = free_head;
+                        free_head = page_cur;
                     }
                     return;
                 }
-                block_looper = block_looper->child;
-            } while (block_looper != page_looper->block_head);
+                fb_pre = fb_cur;
+                fb_cur = *((void **)fb_cur);
+            }
         }
-        page_looper = page_looper->child;
-    } while (page_looper != page_head);
+        page_pre = page_cur;
+        page_cur = page_cur->next;
+    }
 }
 
 #endif // KMA_RM

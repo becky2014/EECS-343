@@ -46,8 +46,6 @@
 #define __KMA_IMPL__
 
 /************System include***********************************************/
-#include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
 
 /************Private include**********************************************/
